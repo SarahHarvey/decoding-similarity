@@ -170,11 +170,5 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-<<<<<<< HEAD
 # Saved numpy arrays (because they are often too large)
 *.npy
-=======
-# saved numpy arrays
-*.npy
-
->>>>>>> 92f6af83c9df03534b4b445af82f6ebc6ee359ee
