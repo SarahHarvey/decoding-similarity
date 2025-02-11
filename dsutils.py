@@ -2,7 +2,6 @@
 Miscellaneous helper functions.
 """
 
-import matplotlib.pyplot as plt
 import torch
 import warnings
 
