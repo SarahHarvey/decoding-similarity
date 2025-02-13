@@ -4,10 +4,7 @@ from sklearn.base import BaseEstimator
 
 class LinearCKA:
     """
-    Note: This function differs from the one outlined in
-    Kornblith et al. (2019). It introduces an arccos(.)
-    into the final calculation so that the result satisfies
-    the conditions of a metric.
+    Compute linear Centered Kernel Alignment.
     """
 
     def __init__(self, center_columns=True):
@@ -28,7 +25,7 @@ class LinearCKA:
         Returns
         -------
         dist : float
-            Distance between X and Y.
+            Similarity score between X and Y.
         """
 
         if self.center_columns:
@@ -41,6 +38,64 @@ class LinearCKA:
         cka_score = np.trace(KX @ KY)/(np.linalg.norm(KX,ord='fro')*np.linalg.norm(KY,ord='fro'))
 
         return cka_score
+
+
+class LinearDecodingSimilarity:
+    """
+    Compute linear decoding similarity.
+    """
+
+    def __init__(self, center_columns=True):
+        self.center_columns = center_columns
+
+    def fit(self, X, Y):
+        pass
+
+    def score(self, X, Y, Cz, a, b):
+        """
+        Parameters
+        ----------
+        X : ndarray
+            (num_samples x num_neurons) matrix of activations.
+        Y : ndarray
+            (num_samples x num_neurons) matrix of activations.
+        Cz: ndarray
+            (num_samples x num_samples) decoding task covariance
+        a : float
+        b : float
+
+        Returns
+        -------
+        dist : float
+            Similiarity score between X and Y with respect to decoding task with covariance Cz.
+        """
+
+        if self.center_columns:
+            X = X - np.mean(X, axis=0)
+            Y = Y - np.mean(Y, axis=0)
+
+        M = np.shape(X)[0]
+        if M != np.shape(Y)[0]:
+            raise ValueError(
+                "Both representations need to have the same number of samples (inputs).")
+
+        CX = (1/M)*(X.T)@X
+        CY = (1/M)*(Y.T)@Y
+
+        GX = a*CX + b*np.identity(len(CX))
+        GY = a*CY + b*np.identity(len(CY))
+
+        # Compute inner product between (sample x sample) normalized covariance matrices.
+        KX = (1/M)*X@np.linalg.inv(GX)@(X.T)
+        KY = (1/M)*Y@np.linalg.inv(GY)@(Y.T) 
+
+        ds = np.trace(KX@Cz@KY)/np.sqrt((np.trace(KX@Cz@KX)*np.trace(KY@Cz@KY)) )
+        
+        return ds
+
+
+
+
 
 
 
