@@ -77,6 +77,55 @@ def gaussian_partitions_cov_matrix(M, n):
     return Cz
 
 
+def update_gaussian_cov_matrix(Cz, n, delta_n):
+    M = np.shape(Cz)[0]
+    new_cov_contrib = delta_n*gaussian_partitions_cov_matrix(M,delta_n)
+    newCz = (1/(n + delta_n))*(n*Cz + new_cov_contrib)
+    return newCz
+
+def update_random_cov_matrix(Cz, n, delta_n):
+    M = np.shape(Cz)[0]
+    new_cov_contrib = delta_n*random_partitions_cov_matrix(M,delta_n)
+    newCz = (1/(n + delta_n))*(n*Cz + new_cov_contrib)
+    return newCz
+
+
+class PartitionsCovMatrix:
+    
+    def __init__(self, M, n_initial, method = 'binary'):
+        self.M = M
+        self.n = n_initial
+        self.method = method
+        self.matrix = None
+
+    def initialize_cov_matrix(self):
+        if self.method == 'binary':
+            Cz = random_partitions_cov_matrix(self.M, self.n)
+        elif self.method == 'gaussian':
+            Cz = gaussian_partitions_cov_matrix(self.M, self.n)
+        else:
+            raise ValueError(
+                "method must be either 'binary' or 'gaussian'.")
+        self.matrix = Cz
+        
+        return None
+
+    def update_cov_matrix(self, add_n):
+        if self.method == 'binary':
+            Cz = update_random_cov_matrix(self.matrix, self.n, add_n)
+        elif self.method == 'gaussian':
+            Cz = update_gaussian_cov_matrix(self.matrix, self.n, add_n)
+        else:
+            raise ValueError(
+                "method must be either 'binary' or 'gaussian'.")
+        
+        self.n = self.n + add_n
+        self.matrix = Cz
+        
+        return None
+    
+
+
 
 # def get_Jacobian_matrices(model, inputs):
 #     for i in range(inputs.shape[0]):

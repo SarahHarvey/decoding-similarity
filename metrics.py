@@ -45,13 +45,15 @@ class LinearDecodingSimilarity:
     Compute linear decoding similarity.
     """
 
-    def __init__(self, center_columns=True):
+    def __init__(self, center_columns=True, a=0, b=1):
         self.center_columns = center_columns
+        self.a = a
+        self.b = b
 
     def fit(self, X, Y):
         pass
 
-    def score(self, X, Y, Cz, a, b):
+    def score(self, X, Y, Cz):
         """
         Parameters
         ----------
@@ -82,11 +84,11 @@ class LinearDecodingSimilarity:
         CX = (1/M)*(X.T)@X
         CY = (1/M)*(Y.T)@Y
 
-        GX = a*CX + b*np.identity(len(CX))
-        GY = a*CY + b*np.identity(len(CY))
+        GX = self.a*CX + self.b*np.identity(len(CX))
+        GY = self.a*CY + self.b*np.identity(len(CY))
 
         # Compute inner product between (sample x sample) normalized covariance matrices.
-        KX = (1/M)*X@np.linalg.inv(GX)@(X.T)
+        KX = (1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
         KY = (1/M)*Y@np.linalg.inv(GY)@(Y.T) 
 
         ds = np.trace(KX@Cz@KY)/np.sqrt((np.trace(KX@Cz@KX)*np.trace(KY@Cz@KY)) )
