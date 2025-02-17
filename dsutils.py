@@ -26,6 +26,30 @@ class SoftMaxModule(nn.Module):
         return self.softmax(x)
 
 
+def bespoke_cov_matrix(z):
+    """
+    Parameters
+    ----------
+    z : list of tasks.  Each element of list should be an array of length M = (number of samples).
+
+    Returns
+    -------
+    Cz : ndarray
+        M x M empirical covariance matrix.
+    """
+
+    n = len(z)
+
+    Cz = 0
+    for i in range(n):
+        Cz = Cz + z[i]@z[i].T
+    Cz = Cz/(n)
+
+    return Cz
+
+
+
+
 def random_partitions_cov_matrix(M, n):
     """
     Parameters
