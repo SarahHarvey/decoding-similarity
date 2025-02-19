@@ -1,6 +1,6 @@
 import numpy as np
 import numpy.typing as npt
-from sklearn.base import BaseEstimator
+# from sklearn.base import BaseEstimator
 
 class LinearCKA:
     """
@@ -43,6 +43,8 @@ class LinearCKA:
 class LinearDecodingSimilarity:
     """
     Compute linear decoding similarity.
+
+    Parameters a and b dictate the regularization assumed when performing linear decoding.  Defaults to a = 0 and b = 1.  See https://arxiv.org/abs/2411.08197 for more details. 
     """
 
     def __init__(self, center_columns=True, a=0, b=1):
@@ -94,11 +96,6 @@ class LinearDecodingSimilarity:
         ds = np.trace(KX@Cz@KY)/np.sqrt((np.trace(KX@Cz@KX)*np.trace(KY@Cz@KY)) )
         
         return ds
-
-
-
-
-
 
 
 def sq_bures_metric(A: npt.NDArray, B: npt.NDArray) -> float:

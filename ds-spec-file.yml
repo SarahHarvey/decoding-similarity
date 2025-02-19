@@ -1,0 +1,15 @@
+name: ds
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - numpy
+  - matplotlib
+  - pytorch
+  - torchvision
+  - pillow
+  - ipykernel
+  - validators
+  - pandas
+  - notebook
+prefix: /mnt/home/sharvey/miniforge3/envs/ds
