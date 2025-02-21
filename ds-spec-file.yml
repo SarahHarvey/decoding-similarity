@@ -12,4 +12,5 @@ dependencies:
   - validators
   - pandas
   - notebook
+  - scikit-learn
 prefix: /mnt/home/sharvey/miniforge3/envs/ds
