@@ -2,6 +2,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 import torch.nn as nn
+import torchvision.models as models
 
 import dsutils
 
@@ -120,6 +121,22 @@ def extract_rep(model: str, trainloader) -> npt.NDArray:
                 
         return y1 
 
+    if model == "vgg16":
+        vgg16 = models.vgg16(weights='DEFAULT')
+        vgg16.eval().to(device)
+
+        module1 = list(vgg16.children())[0:2]
+        module2 = list(vgg16.children())[2:]
+
+        vgg16_1st = nn.Sequential(*[*module1, dsutils.Flatten(), module2[0][0:6]] )
+        vgg16_2nd = nn.Sequential(*[module2[0][6:], dsutils.SoftMaxModule() ])
+
+        with torch.no_grad():
+            for inputs, _ in trainloader:
+                y1 = vgg16_1st(inputs)
+                # y2 = vgg16_2nd(y1) 
+
+        return y1
 
 
     else: 
