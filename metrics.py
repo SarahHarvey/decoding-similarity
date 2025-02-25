@@ -78,9 +78,14 @@ class LinearDecodingSimilarity:
             Y = Y - np.mean(Y, axis=0)
 
         M = np.shape(X)[0]
+        N = np.shape(X)[1]
         if M != np.shape(Y)[0]:
             raise ValueError(
                 "Both representations need to have the same number of samples (inputs).")
+
+        if N > M and self.b == 0:
+            raise ValueError(
+                "Neuron x Neuron covariance matrix is rank deficient since #neurons > #inputs, so b cannot be 0.")
 
         CX = (1/M)*(X.T)@X
         CY = (1/M)*(Y.T)@Y
