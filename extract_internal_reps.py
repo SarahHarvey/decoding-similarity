@@ -192,10 +192,10 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
                 
         return y1 
 
-    if model == "vgg16":
+    if model.startswith("vgg"): #model == "vgg16":
 
-        vgg16 = torch.hub.load('pytorch/vision:v0.10.0', 'vgg16', pretrained=True)
-        vgg16.eval().to(device)
+        vggX = torch.hub.load('pytorch/vision:v0.10.0', model, pretrained=True)
+        vggX.eval().to(device)
 
         preprocess = transforms.Compose([
         transforms.Resize(256),
@@ -208,15 +208,15 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
         M = len(dataset)
         trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=0)  # set num_workers to 0 if you are running this on a Mac
 
-        module1 = list(vgg16.children())[0:2]
-        module2 = list(vgg16.children())[2:]
+        module1 = list(vggX.children())[0:2]
+        module2 = list(vggX.children())[2:]
 
-        vgg16_1st = nn.Sequential(*[*module1, dsutils.Flatten(), module2[0][0:6]] )
-        vgg16_2nd = nn.Sequential(*[module2[0][6:], dsutils.SoftMaxModule() ])
+        vggX_1st = nn.Sequential(*[*module1, dsutils.Flatten(), module2[0][0:6]] )
+        vggX_2nd = nn.Sequential(*[module2[0][6:], dsutils.SoftMaxModule() ])
 
         with torch.no_grad():
             for inputs, _ in trainloader:
-                y1 = vgg16_1st(inputs)
+                y1 = vggX_1st(inputs)
                 # y2 = vgg16_2nd(y1) 
 
         return y1
@@ -272,6 +272,56 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
         return y1
 
 
+    if model == "densenet":
+
+        densenet = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=True)
+        densenet.eval().to(device)
+
+        preprocess = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+        dataset = datasets.ImageFolder(data_dir, transform=preprocess)
+        M = len(dataset)
+        trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=0)  # set num_workers to 0 if you are running this on a Mac
+
+        densenet.classifier = nn.Identity()
+
+        with torch.no_grad():
+            for inputs, _ in trainloader:
+                y1 = densenet(inputs)
+
+        return y1
+
+
+    if model == "mobilenetv2":
+
+        mobilenet = torch.hub.load('pytorch/vision:v0.10.0', 'mobilenet_v2', pretrained=True)
+        mobilenet.eval().to(device)
+
+        preprocess = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+        dataset = datasets.ImageFolder(data_dir, transform=preprocess)
+        M = len(dataset)
+        trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=0)  # set num_workers to 0 if you are running this on a Mac
+
+        mobilenet.classifier = nn.Identity()
+
+        with torch.no_grad():
+            for inputs, _ in trainloader:
+                y1 = mobilenet(inputs)
+
+        return y1
+
 
     else: 
-        return print("Model name not found")
+        return print("Model name not found.  Available models are: " + ", " .join([model_name for model_name in available_models]))
+

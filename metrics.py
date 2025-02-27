@@ -27,13 +27,16 @@ class LinearCKA:
             Similarity score between X and Y.
         """
 
+        Nx = np.shape(X)[1]
+        Ny = np.shape(Y)[1]
+
         if self.center_columns:
             X = X - np.mean(X, axis=0)
             Y = Y - np.mean(Y, axis=0)
 
         # Compute angular distance between (sample x sample) covariance matrices.
-        KX = X@np.transpose(X)
-        KY = Y@np.transpose(Y)    
+        KX = (1/Nx)*X@np.transpose(X)
+        KY = (1/Ny)*Y@np.transpose(Y)    
         cka_score = np.trace(KX @ KY)/(np.linalg.norm(KX,ord='fro')*np.linalg.norm(KY,ord='fro'))
 
         return cka_score
@@ -78,14 +81,16 @@ class LinearDecodingSimilarity:
             Y = Y - np.mean(Y, axis=0)
 
         M = np.shape(X)[0]
-        N = np.shape(X)[1]
+        Nx = np.shape(X)[1]
+        Ny = np.shape(Y)[1]
+
         if M != np.shape(Y)[0]:
             raise ValueError(
                 "Both representations need to have the same number of samples (inputs).")
 
-        if N > M and self.b == 0:
+        if (Nx > M and self.b == 0) or (Ny > M and self.b == 0) :
             raise ValueError(
-                "Neuron x Neuron covariance matrix is rank deficient since #neurons > #inputs, so b cannot be 0.")
+                "At least one of the Neuron x Neuron covariance matrices is rank deficient since #neurons > #inputs, so b cannot be 0.")
 
         CX = (1/M)*(X.T)@X
         CY = (1/M)*(Y.T)@Y
@@ -94,8 +99,8 @@ class LinearDecodingSimilarity:
         GY = self.a*CY + self.b*np.identity(len(CY))
 
         # Compute inner product between (sample x sample) normalized covariance matrices.
-        KX = (1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
-        KY = (1/M)*Y@np.linalg.inv(GY)@(Y.T) 
+        KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
+        KY = (1/Ny)*(1/M)*Y@np.linalg.inv(GY)@(Y.T) 
 
         ds = np.trace(KX@Cz@KY)/np.sqrt((np.trace(KX@Cz@KX)*np.trace(KY@Cz@KY)) )
         
