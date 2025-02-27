@@ -177,3 +177,5 @@ compute-Jacobians.ipynb
 
 internal_reps.pkl
 
+*.png
+*.pdf
