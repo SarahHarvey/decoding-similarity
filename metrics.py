@@ -107,10 +107,16 @@ class LinearDecodingSimilarity:
         return ds
 
 
-def sq_bures_metric(A: npt.NDArray, B: npt.NDArray) -> float:
+def sq_bures_metric(X: npt.NDArray, Y: npt.NDArray) -> float:
     """Slow way to compute the square of the Bures metric between two
      positive-definite matrices.
     """
+    Nx = np.shape(X)[1]
+    Ny = np.shape(Y)[1]
+
+    A = (1/Nx)*X@(X.T) 
+    B = (1/Ny)*Y@(Y.T) 
+    
     va, ua = np.linalg.eigh(A)
     vb, ub = np.linalg.eigh(B)
     sva = np.sqrt(np.maximum(va, 0.0))

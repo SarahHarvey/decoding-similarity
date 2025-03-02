@@ -41,7 +41,7 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
                 y1 = rnet18_1st(inputs)
                 # y2 = rnet18_2nd(y1) 
 
-        return y1
+        return y1, rnet18_2nd
 
 
     if model == "resnet50":
@@ -71,7 +71,7 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
                 y1 = rnet50_1st(inputs)
                 # y2 = rnet50_2nd(y1) 
 
-        return y1
+        return y1, rnet50_2nd
     
 
     if model == "alexnet":
@@ -102,7 +102,7 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
                 x1 = anet_1st(inputs)
                 # x2 = anet_2nd(x1) 
                 
-        return x1
+        return x1, anet_2nd
 
     if model == "resnet34":
  
@@ -132,7 +132,7 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
                 y1 = rnet34_1st(inputs)
                 # y2 = rnet34_2nd(y1) 
 
-        return y1
+        return y1, rnet34_2nd
 
     if model == "resnet101":
 
@@ -161,7 +161,7 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
                 y1 = rnet101_1st(inputs)
                 # y2 = rnet101_2nd(y1) 
 
-        return y1
+        return y1, rnet101_2nd
 
     if model == "resnet152":
 
@@ -190,7 +190,7 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
                 y1 = rnet152_1st(inputs)
                 # y2 = rnet152_2nd(y1)
                 
-        return y1 
+        return y1, rnet152_2nd
 
     if model.startswith("vgg"): #model == "vgg16":
 
@@ -219,7 +219,7 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
                 y1 = vggX_1st(inputs)
                 # y2 = vgg16_2nd(y1) 
 
-        return y1
+        return y1, vggX_2nd
 
 
     if model == "inceptionv3":
@@ -238,13 +238,14 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
         M = len(dataset)
         trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=0)  # set num_workers to 0 if you are running this on a Mac
 
+        inception_2nd = inceptionv3.fc
         inceptionv3.fc = nn.Identity()
 
         with torch.no_grad():
             for inputs, _ in trainloader:
                 y1 = inceptionv3(inputs)
 
-        return y1
+        return y1, inception_2nd  # TO DO: return 2nd half
 
 
     if model == "squeezenetv1":
@@ -263,13 +264,14 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
         M = len(dataset)
         trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=0)  # set num_workers to 0 if you are running this on a Mac
 
+        squeezenet_2nd = squeezenetv1.classifier
         squeezenetv1.classifier = nn.Flatten()
 
         with torch.no_grad():
             for inputs, _ in trainloader:
                 y1 = squeezenetv1(inputs)
 
-        return y1
+        return y1, squeezenet_2nd  # TO DO 
 
 
     if model == "densenet":
@@ -288,13 +290,14 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
         M = len(dataset)
         trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=0)  # set num_workers to 0 if you are running this on a Mac
 
+        densenet_2nd = densenet.classifier
         densenet.classifier = nn.Identity()
 
         with torch.no_grad():
             for inputs, _ in trainloader:
                 y1 = densenet(inputs)
 
-        return y1
+        return y1, densenet_2nd # TO DO 
 
 
     if model == "mobilenetv2":
@@ -313,14 +316,15 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
         M = len(dataset)
         trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=0)  # set num_workers to 0 if you are running this on a Mac
 
+        mobilenet_2nd = mobilenet.classifier
         mobilenet.classifier = nn.Identity()
 
         with torch.no_grad():
             for inputs, _ in trainloader:
                 y1 = mobilenet(inputs)
 
-        return y1
-
+        return y1, mobilenet_2nd  # TO DO 
+ 
 
     else: 
         return print("Model name not found.  Available models are: " + ", " .join([model_name for model_name in available_models]))

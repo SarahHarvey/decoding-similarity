@@ -1,5 +1,5 @@
 """
-Miscellaneous helper functions.
+Decoding similarity helper functions.
 """
 
 import torch
@@ -159,4 +159,3 @@ class PartitionsCovMatrix:
         self.matrix = Cz
         
         return None
-    
