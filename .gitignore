@@ -175,7 +175,7 @@ cython_debug/
 
 compute-Jacobians.ipynb
 
-internal_reps.pkl
+*.pkl
 
 *.png
 *.pdf
