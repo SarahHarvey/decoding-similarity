@@ -67,7 +67,7 @@ def compute_Jacobian_Bures_distances(J_dict, model_names):
                     bures_dists[i,j] = metrics.sq_bures_metric(JX,JY)
     
         bures_dists = bures_dists + bures_dists.T
-        bures_dists_all_rbyn.append(bures_dists)
+        bures_dists_all.append(bures_dists)
     
         print(str(outer_ind) + "/" + str(len(J_dict[model_names[0]])) )
 
