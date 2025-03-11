@@ -172,6 +172,7 @@ cython_debug/
 
 # Saved numpy arrays (because they are often too large)
 *.npy
+*.npz
 
 compute-Jacobians.ipynb
 

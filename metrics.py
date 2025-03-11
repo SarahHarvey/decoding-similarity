@@ -108,7 +108,7 @@ class LinearDecodingSimilarity:
 
 
 def sq_bures_metric(X: npt.NDArray, Y: npt.NDArray) -> float:
-    """Slow way to compute the square of the Bures metric between two
+    """Compute the square of the Bures distance between two
      positive-definite matrices.
     """
     Nx = np.shape(X)[1]
@@ -129,3 +129,29 @@ def sq_bures_metric(X: npt.NDArray, Y: npt.NDArray) -> float:
             )
         )
     )
+
+def sq_proc_dist(X: npt.NDArray, Y: npt.NDArray) -> float:
+    """Compute the square of the Procrustes distance between two
+     positive-definite matrices.
+    """
+    Nx = np.shape(X)[1]
+    Ny = np.shape(Y)[1]
+
+    A = (1/Nx)*(X.T)@X 
+    B = (1/Ny)*(Y.T)@Y 
+    # A = (X.T)@X 
+    # B = (Y.T)@Y    
+    
+    va, ua = np.linalg.eigh(A)
+    vb, ub = np.linalg.eigh(B)
+    sva = np.sqrt(np.maximum(va, 0.0))
+    svb = np.sqrt(np.maximum(vb, 0.0))
+    return (
+        np.sum(va) + np.sum(vb) - 2 * (1/Nx) * (1/Ny) * np.sum(
+            np.linalg.svd(
+                 (X.T)@Y ,
+                compute_uv=False
+            )
+        )
+    )
+
