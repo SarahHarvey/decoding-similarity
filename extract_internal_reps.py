@@ -2,13 +2,90 @@ import numpy as np
 import numpy.typing as npt
 import torch
 import torch.nn as nn
+import torchvision
 import torchvision.models as models
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
 import dsutils
 
-def extract_rep(model: str, data_dir) -> npt.NDArray:
+def extract_rep_gen(model: str, data_dir, weights: str ) -> npt.NDArray:
+    
+    available_models = models.list_models(module=torchvision.models)
+    
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print(f'Using {device} for inference')
+
+    if weights == "first":
+        weight_enum = torch.hub.load("pytorch/vision", "get_model_weights", name=model)
+        weights_avail = [weight for weight in weight_enum]
+        testmodel = torch.hub.load('pytorch/vision', model, weights=weights_avail[0])
+
+    elif weights == "last":
+        weight_enum = torch.hub.load("pytorch/vision", "get_model_weights", name=model)
+        weights_avail = [weight for weight in weight_enum]
+        testmodel = torch.hub.load('pytorch/vision', model, weights=weights_avail[-1])
+        
+    elif weights == "default":
+        testmodel = torch.hub.load('pytorch/vision', model, pretrained=True)
+
+    # elif weights == "all":  TO DO
+
+    
+    testmodel.eval().to(device)
+
+    if model == "inception_v3": 
+        preprocess = transforms.Compose([
+            transforms.Resize(299),
+            transforms.CenterCrop(299),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                ])
+    else:
+        preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+
+    dataset = datasets.ImageFolder(data_dir, transform=preprocess)
+    M = len(dataset)
+    trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=2)  # set num_workers to 0 if you are running this on a Mac
+
+    # module1 = list(testmodel.children())[0:-1]
+    # module2 = list(testmodel.children())[-1]
+
+    # model_1st = nn.Sequential(*[*module1, dsutils.Flatten()])
+    # model_2nd = nn.Sequential(*[module2, dsutils.SoftMaxModule() ])
+
+    if 'fc' in dir(testmodel):
+        testmodel_2nd = testmodel.fc
+        testmodel.fc = nn.Identity()
+    elif 'classifier' in dir(testmodel):
+        testmodel_2nd = testmodel.classifier
+        testmodel.classifier = nn.Identity()
+    elif 'head' in dir(testmodel):
+        testmodel_2nd = testmodel.head
+        testmodel.head = nn.Identity()
+    elif 'heads' in dir(testmodel):
+        testmodel_2nd = testmodel.heads
+        testmodel.heads = nn.Identity()
+    else:
+        raise ValueError(
+                "Last layer has weird name")
+
+    with torch.no_grad():
+        for inputs, _ in trainloader:
+            y1 = testmodel(inputs)
+
+
+
+    return y1, testmodel_2nd
+
+
+def extract_rep(model: str, data_dir, weights: str) -> npt.NDArray:
 
     available_models = ["alexnet", "resnet18", "resnet34", "resnet50", "resnet101", "resnet152", "vgg16", "inceptionv3"]
 
@@ -245,7 +322,7 @@ def extract_rep(model: str, data_dir) -> npt.NDArray:
             for inputs, _ in trainloader:
                 y1 = inceptionv3(inputs)
 
-        return y1, inception_2nd  # TO DO: return 2nd half
+        return y1, inception_2nd  
 
 
     if model == "squeezenetv1":
