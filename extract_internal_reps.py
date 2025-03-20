@@ -52,7 +52,7 @@ def extract_rep_gen(model: str, data_dir, weights: str ) -> npt.NDArray:
 
     dataset = datasets.ImageFolder(data_dir, transform=preprocess)
     M = len(dataset)
-    trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=2)  # set num_workers to 0 if you are running this on a Mac
+    trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=1)  # set num_workers to 0 if you are running this on a Mac
 
     # module1 = list(testmodel.children())[0:-1]
     # module2 = list(testmodel.children())[-1]
@@ -79,7 +79,7 @@ def extract_rep_gen(model: str, data_dir, weights: str ) -> npt.NDArray:
     with torch.no_grad():
         for inputs, _ in trainloader:
             y1 = testmodel(inputs)
-
+            # y2 = testmodel_2nd(y1)
 
 
     return y1, testmodel_2nd

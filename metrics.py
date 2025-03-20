@@ -126,7 +126,11 @@ class LinearDecodingSimilarityMulti:
         cached = []
         
         for k in range(len(reps)):
-            X = reps[k].numpy()
+            if not isinstance(reps[k],np.ndarray):
+                X = reps[k].numpy()
+            else:
+                X = reps[k]
+                
             if self.center_columns:
                 X = X - np.mean(X, axis=0)
                 
