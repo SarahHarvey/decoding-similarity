@@ -204,7 +204,7 @@ class LinearDecodingSimilarityMulti:
 
 
 
-def sq_bures_metric(X: npt.NDArray, Y: npt.NDArray) -> float:
+def sq_bures_metric(X: npt.NDArray, Y: npt.NDArray, normalize: str) -> float:
     """Compute the square of the Bures distance between two
      positive-definite matrices.
     """
@@ -213,6 +213,13 @@ def sq_bures_metric(X: npt.NDArray, Y: npt.NDArray) -> float:
 
     A = (1/Nx)*X@(X.T) 
     B = (1/Ny)*Y@(Y.T) 
+
+    if normalize == "fro":
+        A = A / np.linalg.norm(A, ord="fro")
+        B = B / np.linalg.norm(B, ord="fro")
+    elif normalize == "trace1":
+        A = A / np.linalg.trace(A)
+        B = B / np.linalg.trace(B)
     
     va, ua = np.linalg.eigh(A)
     vb, ub = np.linalg.eigh(B)
@@ -253,7 +260,7 @@ def sq_proc_dist(X: npt.NDArray, Y: npt.NDArray) -> float:
     )
 
 
-def kernel_euc_dist(X: npt.NDArray, Y: npt.NDArray) -> float:
+def kernel_euc_dist(X: npt.NDArray, Y: npt.NDArray, normalize: str) -> float:
     """Compute the square of the Procrustes distance between two
      positive-definite matrices.
     """
@@ -263,7 +270,12 @@ def kernel_euc_dist(X: npt.NDArray, Y: npt.NDArray) -> float:
     A = (1/Nx)*X@(X.T) 
     B = (1/Ny)*Y@(Y.T) 
     # A = (X.T)@X 
-    # B = (Y.T)@Y    
+    # B = (Y.T)@Y  
+
+    if normalize == "fro":
+        A = A / np.linalg.norm(A, ord="fro")
+        B = B / np.linalg.norm(B, ord="fro")
+        
     
     return (
         np.linalg.norm(A - B, ord="fro")
