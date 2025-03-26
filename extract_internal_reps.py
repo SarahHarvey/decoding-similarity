@@ -6,8 +6,143 @@ import torchvision
 import torchvision.models as models
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
+from PIL import Image
+
 
 import dsutils
+
+def extract_rep_nsd(model: str, image_data, weights: str ) -> npt.NDArray:
+    
+    available_models = models.list_models(module=torchvision.models)
+    
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print(f'Using {device} for inference')
+
+
+    if model == "pixels":
+
+        testmodel = nn.Sequential(*[nn.Identity(), dsutils.Flatten()])
+        testmodel.eval().to(device)
+        
+        preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+    
+        # dataset = datasets.ImageFolder(data_dir, transform=preprocess)
+        # M = len(dataset)
+        # trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=0)  # set num_workers to 0 if you are running this on a Mac
+    
+
+        n = len(image_data)
+        batch_size = n
+
+        for i in range(0, n, batch_size):
+            # Convert each numpy image to a PIL image and apply preprocessing.
+            batch_imgs = image_data[i:i+batch_size]
+            batch_tensors = torch.stack([preprocess(Image.fromarray(img)) for img in batch_imgs]).to(device)
+            with torch.no_grad():
+                # output = torch.nn.functional.softmax(testmodel(batch_tensors), dim=1)
+                y1 = testmodel(batch_tensors)
+
+        # with torch.no_grad():
+        #     for inputs, _ in trainloader:
+        #         y1 = testmodel(inputs)
+    
+        return y1, nn.Identity()
+
+    else:
+    
+
+        if weights == "first":
+            weight_enum = torch.hub.load("pytorch/vision", "get_model_weights", name=model)
+            weights_avail = [weight for weight in weight_enum]
+            testmodel = torch.hub.load('pytorch/vision', model, weights=weights_avail[0])
+    
+        elif weights == "last":
+            weight_enum = torch.hub.load("pytorch/vision", "get_model_weights", name=model)
+            weights_avail = [weight for weight in weight_enum]
+            testmodel = torch.hub.load('pytorch/vision', model, weights=weights_avail[-1])
+            
+        elif weights == "default":
+            testmodel = torch.hub.load('pytorch/vision', model, pretrained=True)
+    
+        elif weights == "random":
+            testmodel = torch.hub.load('pytorch/vision', model, pretrained=False)
+    
+        # elif weights == "all":  TO DO
+    
+        
+        testmodel.eval().to(device)
+    
+        if model == "inception_v3": 
+            preprocess = transforms.Compose([
+                transforms.Resize(299),
+                transforms.CenterCrop(299),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                    ])
+        else:
+            preprocess = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+    
+    
+        # dataset = datasets.ImageFolder(data_dir, transform=preprocess)
+        # M = len(dataset)
+        # trainloader = DataLoader(dataset, batch_size=M, shuffle=False, num_workers=1)  # set num_workers to 0 if you are running this on a Mac
+    
+        # module1 = list(testmodel.children())[0:-1]
+        # module2 = list(testmodel.children())[-1]
+    
+        # model_1st = nn.Sequential(*[*module1, dsutils.Flatten()])
+        # model_2nd = nn.Sequential(*[module2, dsutils.SoftMaxModule() ])
+    
+        if 'fc' in dir(testmodel):
+            testmodel_2nd = testmodel.fc
+            testmodel.fc = nn.Identity()
+        elif 'classifier' in dir(testmodel):
+            testmodel_2nd = testmodel.classifier
+            testmodel.classifier = nn.Identity()
+        elif 'head' in dir(testmodel):
+            testmodel_2nd = testmodel.head
+            testmodel.head = nn.Identity()
+        elif 'heads' in dir(testmodel):
+            testmodel_2nd = testmodel.heads
+            testmodel.heads = nn.Identity()
+        else:
+            raise ValueError(
+                    "Last layer has weird name")
+    
+
+        n = len(image_data)
+        batch_size = n
+
+        for i in range(0, n, batch_size):
+            # Convert each numpy image to a PIL image and apply preprocessing.
+            batch_imgs = image_data[i:i+batch_size]
+            batch_tensors = torch.stack([preprocess(Image.fromarray(img)) for img in batch_imgs]).to(device)
+            with torch.no_grad():
+                # output = torch.nn.functional.softmax(testmodel(batch_tensors), dim=1)
+                y1 = testmodel(batch_tensors)
+
+        # with torch.no_grad():
+        #     for inputs, _ in trainloader:
+        #         y1 = testmodel(inputs)
+        #         # y2 = testmodel_2nd(y1)
+    
+    
+        return y1, testmodel_2nd
+
+
+
+
+
 
 def extract_rep_gen(model: str, data_dir, weights: str ) -> npt.NDArray:
     
