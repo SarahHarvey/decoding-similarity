@@ -198,7 +198,7 @@ class LinearDecodingSimilarityMulti:
         ds = ds + ds.T
         return ds
 
-    def distance(self, reps, Cz, cached):  # TO DO:  make caching optional
+    def distance(self, reps, Cz, cached):  # TO DO:  make caching optional, add parallel option
         """
         Parameters
         ----------
