@@ -121,7 +121,7 @@ class LinearDecodingSimilarityMulti:
         self.a = a
         self.b = b
 
-    def cache(self, reps):
+    def cache(self, reps, returnGinv = False):
         
         cached = []
         
@@ -139,8 +139,11 @@ class LinearDecodingSimilarityMulti:
 
             CX = (1/M)*(X.T)@X
             GX = self.a*CX + self.b*np.identity(len(CX))
-            KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
-            cached.append(KX)
+            if returnGinv == True:
+                cached.append(np.linalg.inv(GX))
+            else: 
+                KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
+                cached.append(KX)
             
             print(k)
         print("Done caching.")
@@ -248,6 +251,63 @@ class LinearDecodingSimilarityMulti:
 
         dd = dd + dd.T
         return dd
+    
+    def testscore(self, reps_train, reps_test, Cz, cached):  # TO DO:  make caching optional
+        """
+        Parameters
+        ----------
+        X : ndarray
+            (num_samples x num_neurons) matrix of activations.
+        Y : ndarray
+            (num_samples x num_neurons) matrix of activations.
+        Cz: ndarray
+            (num_samples x num_samples) decoding task covariance
+        a : float
+        b : float
+
+        Returns
+        -------
+        dist : float
+            Similiarity score between X and Y with respect to decoding task with covariance Cz.
+        """
+        ds = np.zeros((len(reps), len(reps)))
+        for i in range(len(reps)):
+            for j in range(len(reps)):
+                if j < i:
+
+                    X = reps_train[i]
+                    Y = reps_train[j]
+
+                    Xtest = reps_test[i]
+                    Ytest = reps_test[j]
+
+                    GinvX = cached[i]
+                    GinvY = cached[j]
+
+                    KX = (1/Nx)*(1/M)*Xtest @ GinvX @ (X.T)
+                    KY = (1/Ny)*(1/M)*Ytest @ GinvY @ (Y.T)
+
+                    M = np.shape(X)[0]
+                    Nx = np.shape(X)[1]
+                    Ny = np.shape(Y)[1]
+
+                    # if M != np.shape(Y)[0]:
+                    #     raise ValueError(
+                    #         "Both representations need to have the same number of samples (inputs).")
+
+                    if (Nx > M and self.b == 0) or (Ny > M and self.b == 0) :
+                        raise ValueError(
+                            "At least one of the Neuron x Neuron covariance matrices is rank deficient since #neurons > #inputs, so b cannot be 0.")
+
+
+                    # Compute inner product between (sample x sample) normalized covariance matrices.
+            
+                    ds[i,j] = np.trace(KX@Cz@KY)/np.sqrt((np.trace(KX@Cz@KX)*np.trace(KY@Cz@KY)) )  
+
+            print(i)
+
+        ds = ds + ds.T
+        return ds
 
 
 
