@@ -227,6 +227,7 @@ class LinearDecodingSimilarityMulti:
                     X = reps[i]
                     Y = reps[j]
 
+
                     KX = cached[i]
                     KY = cached[j]
 
@@ -242,10 +243,8 @@ class LinearDecodingSimilarityMulti:
                         raise ValueError(
                             "At least one of the Neuron x Neuron covariance matrices is rank deficient since #neurons > #inputs, so b cannot be 0.")
 
-
-                    # Compute inner product between (sample x sample) normalized covariance matrices.
             
-                    dd[i,j] = np.trace(KX@Cz@KX) + np.trace(KY@Cz@KY) + np.trace(KY@Cz@KX)  
+                    dd[i,j] = np.trace(KX@Cz@KX) + np.trace(KY@Cz@KY) - 2*np.trace(KY@Cz@KX)  
 
             print(i)
 
@@ -270,26 +269,35 @@ class LinearDecodingSimilarityMulti:
         dist : float
             Similiarity score between X and Y with respect to decoding task with covariance Cz.
         """
-        ds = np.zeros((len(reps), len(reps)))
-        for i in range(len(reps)):
-            for j in range(len(reps)):
+        ds = np.zeros((len(reps_train), len(reps_train)))
+        for i in range(len(reps_train)):
+            for j in range(len(reps_train)):
                 if j < i:
 
                     X = reps_train[i]
                     Y = reps_train[j]
 
+                    if self.center_columns:
+                        X = X - np.mean(X, axis=0)
+                        Y = Y - np.mean(Y, axis=0)
+
                     Xtest = reps_test[i]
                     Ytest = reps_test[j]
+
+                    if self.center_columns:
+                        Xtest = Xtest - np.mean(Xtest, axis=0)
+                        Ytest = Ytest - np.mean(Ytest, axis=0)
 
                     GinvX = cached[i]
                     GinvY = cached[j]
 
-                    KX = (1/Nx)*(1/M)*Xtest @ GinvX @ (X.T)
-                    KY = (1/Ny)*(1/M)*Ytest @ GinvY @ (Y.T)
-
                     M = np.shape(X)[0]
                     Nx = np.shape(X)[1]
                     Ny = np.shape(Y)[1]
+
+                    KX = (1/Nx)*(1/M)*Xtest @ GinvX @ (X.T)
+                    KY = (1/Ny)*(1/M)*Ytest @ GinvY @ (Y.T)
+
 
                     # if M != np.shape(Y)[0]:
                     #     raise ValueError(
@@ -302,7 +310,7 @@ class LinearDecodingSimilarityMulti:
 
                     # Compute inner product between (sample x sample) normalized covariance matrices.
             
-                    ds[i,j] = np.trace(KX@Cz@KY)/np.sqrt((np.trace(KX@Cz@KX)*np.trace(KY@Cz@KY)) )  
+                    ds[i,j] = np.trace(Cz @ (KY.T) @ KX)/np.sqrt((np.trace(KX.T @ KX @ Cz)*np.trace(KY.T @ KY @Cz)) )  
 
             print(i)
 
