@@ -116,10 +116,12 @@ class LinearDecodingSimilarityMulti:
     Parameters a and b dictate the regularization assumed when performing linear decoding.  Defaults to a = 0 and b = 1.  See https://arxiv.org/abs/2411.08197 for more details. 
     """
 
-    def __init__(self, center_columns=True, a=0, b=1):
+    def __init__(self, center_columns=True, a=0, b=1, whiten = False, alpha=1):
         self.center_columns = center_columns
         self.a = a
         self.b = b
+        self.whiten = whiten
+        self.alpha = alpha
 
     def cache(self, reps, returnGinv = False):
         
@@ -137,13 +139,27 @@ class LinearDecodingSimilarityMulti:
             M = np.shape(X)[0]
             Nx = np.shape(X)[1]
 
-            CX = (1/M)*(X.T)@X
-            GX = self.a*CX + self.b*np.identity(len(CX))
-            if returnGinv == True:
-                cached.append(np.linalg.inv(GX))
+            if whiten == True:
+                XTXinv = np.linalg.inv((X.T)@X)
+                evalues, evectors = np.linalg.eigh(XTXinv)
+                XTXinvsqrt = evectors * np.sqrt(evalues) @ evectors.T
+                GXinv = self.alpha**2 @ np.identity(Nx) + self.alpha*(1-self.alpha)*XTXinvsqrt + (1-self.alpha)**2*(XTXinv)
+                # GX = np.linalg.inv(GXinv)
+
+                if returnGinv == True:
+                    cached.append(GXinv)
+                else: 
+                    KX = (1/Nx)*(1/M)*X@GXinv@(X.T) # This could be made faster
+                    cached.append(KX)
+
             else: 
-                KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
-                cached.append(KX)
+                CX = (1/M)*(X.T)@X
+                GX = self.a*CX + self.b*np.identity(len(CX))
+                if returnGinv == True:
+                    cached.append(np.linalg.inv(GX))
+                else: 
+                    KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
+                    cached.append(KX)
             
             print(k)
         print("Done caching.")
