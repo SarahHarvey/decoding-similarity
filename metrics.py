@@ -127,7 +127,7 @@ class LinearDecodingSimilarityMulti:
         
         cached = []
         
-        for k in range(len(reps)):
+        for k in range(5): #range(len(reps)):
             if not isinstance(reps[k],np.ndarray):
                 X = reps[k].numpy()
             else:
@@ -139,11 +139,16 @@ class LinearDecodingSimilarityMulti:
             M = np.shape(X)[0]
             Nx = np.shape(X)[1]
 
-            if whiten == True:
-                XTXinv = np.linalg.inv((X.T)@X)
+            if self.whiten:
+                # Cx = (X.T)@X
+                # if np.linalg.matrix_rank(Cx) < Cx.shape[0]:
+                #     print("matrix is singular")
+                #     cached.append([])
+                # else:
+                XTXinv = np.linalg.pinv((X.T)@X)
                 evalues, evectors = np.linalg.eigh(XTXinv)
-                XTXinvsqrt = evectors * np.sqrt(evalues) @ evectors.T
-                GXinv = self.alpha**2 @ np.identity(Nx) + self.alpha*(1-self.alpha)*XTXinvsqrt + (1-self.alpha)**2*(XTXinv)
+                XTXinvsqrt = evectors * np.sqrt(evalues) @ evectors.T 
+                GXinv = self.alpha**2 * np.identity(Nx) + self.alpha * (1-self.alpha)*XTXinvsqrt + (1-self.alpha)**2 * (XTXinv)
                 # GX = np.linalg.inv(GXinv)
 
                 if returnGinv == True:
