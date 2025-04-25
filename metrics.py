@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+import dsutils
 
 class LinearCKA:
     """
@@ -127,7 +128,7 @@ class LinearDecodingSimilarityMulti:
         
         cached = []
         
-        for k in range(5): #range(len(reps)):
+        for k in range(len(reps)):
             if not isinstance(reps[k],np.ndarray):
                 X = reps[k].numpy()
             else:
@@ -145,16 +146,19 @@ class LinearDecodingSimilarityMulti:
                 #     print("matrix is singular")
                 #     cached.append([])
                 # else:
-                XTXinv = np.linalg.pinv((X.T)@X)
-                evalues, evectors = np.linalg.eigh(XTXinv)
-                XTXinvsqrt = evectors * np.sqrt(evalues) @ evectors.T 
-                GXinv = self.alpha**2 * np.identity(Nx) + self.alpha * (1-self.alpha)*XTXinvsqrt + (1-self.alpha)**2 * (XTXinv)
+                # XTXinv = np.linalg.pinv((X.T)@X)
+                # evalues, evectors = np.linalg.eigh(XTXinv)
+                # XTXinvsqrt = evectors * np.sqrt(evalues) @ evectors.T 
+                # GXinv = self.alpha**2 * np.identity(Nx) + self.alpha * (1-self.alpha)*XTXinvsqrt + (1-self.alpha)**2 * (XTXinv)
                 # GX = np.linalg.inv(GXinv)
 
+                XZ, Z = dsutils.whiten(X, alpha=0.5)
+
                 if returnGinv == True:
+                    GXinv = Z@Z
                     cached.append(GXinv)
                 else: 
-                    KX = (1/Nx)*(1/M)*X@GXinv@(X.T) # This could be made faster
+                    KX = (1/Nx)*(1/M)*XZ@(XZ.T) # This could be made faster
                     cached.append(KX)
 
             else: 

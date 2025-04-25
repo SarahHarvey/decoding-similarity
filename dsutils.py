@@ -5,6 +5,9 @@ Decoding similarity helper functions.
 import torch
 import warnings
 import numpy as np
+import numpy.typing as npt
+from typing import Tuple
+
 
 from torch import nn
 # from torchvision import models
@@ -159,3 +162,83 @@ class PartitionsCovMatrix:
         self.matrix = Cz
         
         return None
+
+
+def whiten(
+    X: npt.NDArray, 
+    alpha: float, 
+    preserve_variance: bool = True, 
+    eigval_tol=1e-7
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
+    """Return regularized whitening transform for a matrix X.
+
+    Parameters
+    ----------
+    X : ndarray
+        Matrix with shape `(m, n)` holding `m` observations
+        in `n`-dimensional feature space. Columns of `X` are
+        expected to be mean-centered so that `X.T @ X` is
+        the covariance matrix.
+    alpha : float
+        Regularization parameter, `0 <= alpha <= 1`. When
+        `alpha == 0`, the data matrix is fully whitened.
+        When `alpha == 1` the data matrix is not transformed
+        (`Z == eye(X.shape[1])`).
+    preserve_variance : bool
+        If True, rescale the (partial) whitening matrix so
+        that the total variance, trace(X.T @ X), is preserved.
+    eigval_tol : float
+        Eigenvalues of covariance matrix are clipped to this
+        minimum value.
+
+    Returns
+    -------
+    X_whitened : ndarray
+        Transformed data matrix.
+    Z : ndarray
+        Matrix implementing the whitening transformation.
+        `X_whitened = X @ Z`.
+    """
+
+    # Return early if regularization is maximal (no whitening).
+    if alpha > (1 - eigval_tol):
+        return X, np.eye(X.shape[1])
+
+    # Compute eigendecomposition of covariance matrix
+    lam, V = np.linalg.eigh(X.T @ X)
+    lam = np.maximum(lam, eigval_tol)
+
+    # Compute diagonal of (partial) whitening matrix.
+    # 
+    # When (alpha == 1), then (d == ones).
+    # When (alpha == 0), then (d == 1 / sqrt(lam)).
+    d = alpha + (1 - alpha) * lam ** (-1 / 2)
+
+    # Rescale the whitening matrix.
+    if preserve_variance:
+
+        # Compute the variance of the transformed data.
+        #
+        # When (alpha == 1), then new_var = sum(lam)
+        # When (alpha == 0), then new_var = len(lam)
+        new_var = np.sum(
+            (alpha ** 2) * lam
+            + 2 * alpha * (1 - alpha) * (lam ** 0.5)
+            + ((1 - alpha) ** 2) * np.ones_like(lam)
+        )
+
+        # Now re-scale d so that the variance of (X @ Z)
+        # will equal the original variance of X.
+        d *= np.sqrt(np.sum(lam) / new_var)
+
+    # Form (partial) whitening matrix.
+    Z = (V * d[None, :]) @ V.T
+
+    # An alternative regularization strategy would be:
+    #
+    # lam, V = np.linalg.eigh(X.T @ X)
+    # d = lam ** (-(1 - alpha) / 2)
+    # Z = (V * d[None, :]) @ V.T
+
+    # Returned (partially) whitened data and whitening matrix.
+    return X @ Z, Z
