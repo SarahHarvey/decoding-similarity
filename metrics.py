@@ -162,13 +162,21 @@ class LinearDecodingSimilarityMulti:
                     cached.append(KX)
 
             else: 
-                CX = (1/M)*(X.T)@X
-                GX = self.a*CX + self.b*np.identity(len(CX))
-                if returnGinv == True:
-                    cached.append(np.linalg.inv(GX))
-                else: 
-                    KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
-                    cached.append(KX)
+                if self.a == 0 and self.b == 1:
+                    if returnGinv == True:
+                        GXinv = np.identity(Nx)
+                        cached.append(GXinv)
+                    else:
+                        KX = (1/Nx)*(1/M)*X@(X.T) # This could be made faster
+                        cached.append(KX)   
+                else:
+                    CX = (1/M)*(X.T)@X
+                    GX = self.a*CX + self.b*np.identity(len(CX))
+                    if returnGinv == True:
+                        cached.append(np.linalg.inv(GX))
+                    else: 
+                        KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
+                        cached.append(KX)
             
             print(k)
         print("Done caching.")

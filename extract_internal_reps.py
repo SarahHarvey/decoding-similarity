@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -10,6 +11,135 @@ from PIL import Image
 
 
 import dsutils
+
+def get_model_activations(modelname, weights, image_data, batch_size=32, saverep = True):
+    """
+    Process images through the given model in batches and return a dictionary
+    containing activations for each recorded feature.
+    """
+    if weights == "first":
+        weight_enum = torch.hub.load("pytorch/vision", "get_model_weights", name=modelname)
+        weights_avail = [weight for weight in weight_enum]
+        loaded_weights = weights_avail[0]
+
+    model = torch.hub.load('pytorch/vision', modelname, weights=loaded_weights)
+
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print(f'Using {device} for inference')
+
+    model.eval().to(device)
+    all_features = {}
+    n = len(image_data)
+
+    feature_outputs = {}
+    hook_handles = []
+
+    def get_features(name):
+        def hook(module, input, output):
+            feature_outputs[name] = output.detach()
+            # print(name)
+        return hook
+
+    for name, module in model.named_children():
+        handle = module.register_forward_hook(get_features(name))
+        hook_handles.append(handle)
+        print(name)
+        # print(module)
+
+    if hasattr(model, 'encoder') and hasattr(model.encoder, 'layers'):
+        for name, module in model.encoder.layers.named_children():
+            handle = module.register_forward_hook(get_features(name))
+            hook_handles.append(handle)
+            # print(name)
+
+
+    if hasattr(model, 'blocks'):
+        prefix='block'
+        for name, module in model.blocks.named_children():
+            full_name = prefix + ('.' if prefix else '') + name
+            handle = module.register_forward_hook(get_features(full_name))
+            hook_handles.append(handle)
+            print(name)
+
+
+    if hasattr(model, 'features'):
+        prefix='feature'
+        for name, module in model.features.named_children():
+            full_name = prefix + ('.' if prefix else '') + name
+            handle = module.register_forward_hook(get_features(full_name))
+            hook_handles.append(handle)
+            print(name)
+
+    if hasattr(model, 'layers'):
+        prefix='layer'
+        for name, module in model.layers.named_children():
+            full_name = prefix + ('.' if prefix else '') + name
+            handle = module.register_forward_hook(get_features(full_name))
+            hook_handles.append(handle)
+            print(name)
+
+
+    if hasattr(model, 'trunk_output'):
+        for name, module in model.trunk_output.named_children():
+            handle = module.register_forward_hook(get_features(name))
+            hook_handles.append(handle)
+            print(name)
+
+    #     # Register hooks for layers whose name contains a specific string
+    # target_substring = 'encoder'
+    # for name, module in model._modules.items():
+    #     if target_substring in name:
+    #         module.register_forward_hook(get_features(name))
+    #         print(name)
+
+    # load preprocessing        
+    if hasattr(loaded_weights, 'transforms') and callable(loaded_weights.transforms):
+        preprocess = loaded_weights.transforms()
+        print("Preprocessing pipeline:")
+        print(preprocess)
+
+    else:
+        print("This model does not provide a transforms() method for preprocessing.  Using default.")
+        preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+        print(preprocess)
+
+    for i in range(0, n, batch_size):
+        # Convert each numpy image to a PIL image and apply preprocessing.
+        batch_imgs = image_data[i:i+batch_size]
+        batch_tensors = torch.stack([preprocess(Image.fromarray(img)) for img in batch_imgs]).to(device)
+        with torch.no_grad():
+            out = model(batch_tensors)
+        
+        if i == 0:
+            # Initialize storage for each feature key.
+            all_features['pixels'] = []
+            for key in feature_outputs.keys():
+                all_features[key] = []
+        for key, feat in feature_outputs.items():
+            all_features[key].append(feat.cpu().numpy())
+
+        all_features['pixels'].append(batch_imgs)
+
+        print(i)
+
+    # Concatenate results for each key.
+    activations = {key: np.concatenate(val, axis=0) for key, val in all_features.items()}
+
+    if saverep:
+        save_dir = os.path.dirname(os.getcwd())
+        repDict = {}
+        repDict[modelname] = activations
+        with open(save_dir + '/reps/' + modelname + '_many_internal_layers_COCO_1000_aran.pkl', 'wb') as f:
+            pickle.dump(repDict, f)
+
+    return activations
+
+
 
 def extract_rep_nsd(model: str, image_data, weights: str ) -> npt.NDArray:
     
