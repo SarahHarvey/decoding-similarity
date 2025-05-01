@@ -8,11 +8,11 @@ import torchvision.models as models
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from PIL import Image
-
+import pickle
 
 import dsutils
 
-def get_model_activations(modelname, weights, image_data, batch_size=32, saverep = True):
+def get_model_activations(modelname, weights, image_data, batch_size=32, saverep = True, filename = ''):
     """
     Process images through the given model in batches and return a dictionary
     containing activations for each recorded feature.
@@ -134,7 +134,7 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
         save_dir = os.path.dirname(os.getcwd())
         repDict = {}
         repDict[modelname] = activations
-        with open(save_dir + '/reps/' + modelname + '_many_internal_layers_COCO_1000_aran.pkl', 'wb') as f:
+        with open(save_dir + '/reps/' + modelname + '_'+ filename + '.pkl', 'wb') as f:
             pickle.dump(repDict, f)
 
     return activations
