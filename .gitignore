@@ -181,3 +181,6 @@ compute-Jacobians.ipynb
 *.png
 *.pdf
 *.zip
+
+# Directories
+meta-llama/
