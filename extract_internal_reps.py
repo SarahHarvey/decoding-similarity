@@ -12,6 +12,93 @@ import pickle
 
 import dsutils
 
+
+def get_model_activations_llama(modelname, model, tokenizer, prompt, max_new_tokens = 100, saverep = True, filename = ''):
+    """
+    Process prompts through the given model in batches and return a dictionary
+    containing activations for each recorded feature.
+    """
+
+    if torch.cuda.is_available():
+        model.to("cuda")
+    
+    feature_outputs = {}
+    hook_handles = []
+    
+    def get_features(name):
+        def hook(module, input, output):
+            # print(output[0].shape)
+            feature_outputs[name] = output[0].cpu().numpy()  # Detach, move to CPU, and convert to NumPy
+        return hook
+    
+    # Identify the layers you want to extract features from
+    # You can inspect the model's named modules:
+    # for name, module in model.named_modules():
+    #     print(name)
+    
+    # Example: Register hooks for all the decoder layers (adjust based on your model's structure)
+    for i in range(model.config.num_hidden_layers):
+        layer_name = f"model.layers.{i}"
+        layer = model.get_submodule(layer_name)
+        handle = layer.register_forward_hook(get_features(layer_name))
+        hook_handles.append(handle)
+    
+    layer_name = f"model.rotary_emb"
+    layer = model.get_submodule(layer_name)
+    handle = layer.register_forward_hook(get_features(layer_name))
+    hook_handles.append(handle)
+    
+    layer_name = f"model"
+    layer = model.get_submodule(layer_name)
+    handle = layer.register_forward_hook(get_features(layer_name))
+    hook_handles.append(handle)
+    
+    layer_name = f"model.embed_tokens"
+    layer = model.get_submodule(layer_name)
+    handle = layer.register_forward_hook(get_features(layer_name))
+    hook_handles.append(handle)
+    
+    layer_name = f"lm_head"
+    layer = model.get_submodule(layer_name)
+    handle = layer.register_forward_hook(get_features(layer_name))
+    hook_handles.append(handle)
+    
+    # Prepare input
+    input_ids = tokenizer.encode(prompt, return_tensors="pt")
+    if torch.cuda.is_available():
+        input_ids = input_ids.to("cuda")
+    
+    # Perform forward pass
+    with torch.no_grad():
+        final_output = model.generate(input_ids, max_new_tokens=max_new_tokens, num_return_sequences=1)
+    
+    
+    # Access the extracted features
+    print("Extracted Features:")
+    for name, features in feature_outputs.items():
+        print(f"Layer: {name}, Shape: {features.shape}")
+    
+    generated_text = tokenizer.decode(final_output[0], skip_special_tokens=True)
+    print(generated_text)
+    
+    # To remove hooks later:
+    for handle in hook_handles:
+        handle.remove()
+        
+    activations = feature_outputs
+        
+    if saverep:
+        save_dir = os.getcwd()
+        repDict = {}
+        repDict[modelname] = activations
+        with open(save_dir + '/reps/' + modelname + '_'+ filename + '.pkl', 'wb') as f:
+            pickle.dump(repDict, f)
+
+    return activations
+
+
+
+
 def get_model_activations(modelname, weights, image_data, batch_size=32, saverep = True, filename = ''):
     """
     Process images through the given model in batches and return a dictionary
