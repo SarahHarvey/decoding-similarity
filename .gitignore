@@ -184,3 +184,6 @@ compute-Jacobians.ipynb
 
 # Directories
 meta-llama/
+
+# videos
+*.mp4
