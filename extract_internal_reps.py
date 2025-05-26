@@ -108,6 +108,8 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
         weight_enum = torch.hub.load("pytorch/vision", "get_model_weights", name=modelname)
         weights_avail = [weight for weight in weight_enum]
         loaded_weights = weights_avail[0]
+    elif weights == 'random':
+        loaded_weights = None
 
     model = torch.hub.load('pytorch/vision', modelname, weights=loaded_weights)
 
