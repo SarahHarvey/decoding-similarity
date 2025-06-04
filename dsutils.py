@@ -12,6 +12,77 @@ from typing import Tuple
 from torch import nn
 # from torchvision import models
 
+
+
+class Frechet:
+    
+    def __init__(self):
+        pass
+
+    # def mean(self, Cz, cached):
+    #     Kbar = np.zeros(np.shape(cached[0]))
+    #     nmodels = len(cached)
+    #     d = np.shape(cached[0])[0]
+    #     for i in range(d):
+    #         for j in range(d):
+    #             for n in range(nmodels):
+    #                 M = cached[n]@Cz
+    #                 Kbar[i,j] = Kbar[i,j] + (1/(nmodels*Cz[i,j]))*M[j,i]
+    #         print(i)
+    #     return Kbar
+
+
+    # def mean(self, Cz, cached):
+    #     Kbar = np.zeros(np.shape(cached[0]))
+    #     nmodels = len(cached)
+    #     d = np.shape(cached[0])[0]
+    #     for n in range(nmodels):
+    #         M = cached[n]@Cz
+    #         Kbar = Kbar + (1/nmodels) * (1/Cz) * np.transpose(M)
+    #         print(n)
+    #     return Kbar
+    
+    def arith_mean(self, cached):
+        Abar = np.zeros(np.shape(cached[0]))
+        nmodels = len(cached)
+        d = np.shape(cached[0])[0]
+        for n in range(nmodels):
+            Abar = Abar + (1/nmodels) * cached[n]
+            print(n)
+        return Abar
+
+    def mean(self, cached, Cz):
+        Abar = np.zeros(np.shape(cached[0]))
+        nmodels = len(cached)
+        d = np.shape(cached[0])[0]
+        B = (2/nmodels)*np.sum(Cz@cached,axis=0)
+        Lambda, U = np.linalg.eig(Cz)
+        UBU = np.transpose(U) @ B @ U
+        D = np.zeros(np.shape(Cz))
+        for i in range(d):
+            for k in range(d):
+                D[i,k] = (1/(Lambda[i] + Lambda[k]))*UBU[i,k]
+        Kbar = U @ D @ np.transpose(U)
+        return Kbar
+
+
+    # def variance(self, Cz, cached, Kbar):
+    #     fvar = 0
+    #     for i in range(len(cached)):
+    #         fvar = fvar + np.trace(Kbar@Kbar@Cz) + np.trace(cached[i]@cached[i]@Cz) - 2 *np.trace(Kbar@cached[i]@Cz)
+    #         print(i)
+    #     return fvar
+
+    def variance(self, cached, Kbar, Cz):
+        fvar = 0
+        for i in range(len(cached)):
+            # fvar = fvar + 2 - 2 *np.trace(np.conjugate(np.transpose(Abar))@cached[i])
+            fvar = fvar + np.trace(Kbar@Cz@Kbar) + np.trace(cached[i]@Cz@cached[i]) - 2*np.trace(Kbar@Cz@cached[i])
+            print(i)
+        return fvar
+    
+
+
 class Flatten(nn.Module):
     def __init__(self):
         super(Flatten, self).__init__()

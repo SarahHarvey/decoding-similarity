@@ -136,6 +136,8 @@ class LinearDecodingSimilarityMulti:
                 
             if self.center_columns:
                 X = X - np.mean(X, axis=0)
+
+            # X = X/np.linalg.norm(X, ord='fro')
                 
             M = np.shape(X)[0]
             Nx = np.shape(X)[1]
@@ -167,7 +169,9 @@ class LinearDecodingSimilarityMulti:
                         GXinv = np.identity(Nx)
                         cached.append(GXinv)
                     else:
-                        KX = (1/Nx)*(1/M)*X@(X.T) # This could be made faster
+                        # KX = (1/Nx)*(1/M)*X@(X.T) # This could be made faster
+                        KX = (1/M)*X@(X.T) # This could be made faster
+
                         cached.append(KX)   
                 else:
                     CX = (1/M)*(X.T)@X
@@ -175,7 +179,9 @@ class LinearDecodingSimilarityMulti:
                     if returnGinv == True:
                         cached.append(np.linalg.inv(GX))
                     else: 
-                        KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
+                        # KX = (1/Nx)*(1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
+                        KX = (1/M)*X@np.linalg.inv(GX)@(X.T) # This could be made faster
+
                         cached.append(KX)
             
             print(k)
@@ -206,6 +212,11 @@ class LinearDecodingSimilarityMulti:
             for j in range(len(reps)):
                 if j < i:
 
+
+                    # if self.center_columns:
+                    #     X = reps[i] - np.mean(reps[i], axis=0)
+                    #     Y = reps[j] - np.mean(reps[j], axis=0)
+                    # else:
                     X = reps[i]
                     Y = reps[j]
 
@@ -252,33 +263,38 @@ class LinearDecodingSimilarityMulti:
         dist : float
             Similiarity score between X and Y with respect to decoding task with covariance Cz.
         """
-        dd = np.zeros((len(reps), len(reps)))
-        for i in range(len(reps)):
-            for j in range(len(reps)):
+        nmodels = len(cached)
+        dd = np.zeros((nmodels, nmodels))
+        for i in range(nmodels):
+            for j in range(nmodels):
                 if j < i:
 
-                    X = reps[i]
-                    Y = reps[j]
+                    # X = reps[i]
+                    # Y = reps[j]
 
 
                     KX = cached[i]
                     KY = cached[j]
 
-                    M = np.shape(X)[0]
-                    Nx = np.shape(X)[1]
-                    Ny = np.shape(Y)[1]
+                    # M = np.shape(X)[0]
+                    # Nx = np.shape(X)[1]
+                    # Ny = np.shape(Y)[1]
 
-                    if M != np.shape(Y)[0]:
-                        raise ValueError(
-                            "Both representations need to have the same number of samples (inputs).")
+                    # if M != np.shape(Y)[0]:
+                    #     raise ValueError(
+                    #         "Both representations need to have the same number of samples (inputs).")
 
-                    if (Nx > M and self.b == 0) or (Ny > M and self.b == 0) :
-                        raise ValueError(
-                            "At least one of the Neuron x Neuron covariance matrices is rank deficient since #neurons > #inputs, so b cannot be 0.")
+                    # if (Nx > M and self.b == 0) or (Ny > M and self.b == 0) :
+                    #     raise ValueError(
+                    #         "At least one of the Neuron x Neuron covariance matrices is rank deficient since #neurons > #inputs, so b cannot be 0.")
 
             
-                    dd[i,j] = np.trace(KX@Cz@KX) + np.trace(KY@Cz@KY) - 2*np.trace(KY@Cz@KX)  
+                    # dd[i,j] = np.trace(KX@Cz@KX)/(np.linalg.norm(KX, ord='fro')**2) + np.trace(KY@Cz@KY)/(np.linalg.norm(KY, ord='fro')**2) - 2*np.trace(KX@Cz@KY)/((np.linalg.norm(KX, ord='fro')) * (np.linalg.norm(KY, ord='fro')) )
 
+                    dd[i,j] = np.sqrt(np.trace(KX@Cz@KX) + np.trace(KY@Cz@KY) - 2*np.trace(KX@Cz@KY))
+
+                    # dd[i,j] = np.sqrt(2 - 2*(np.trace(KX@Cz@KY) / (np.sqrt(np.trace(KX@Cz@KX) * np.trace(KY@Cz@KY)))))
+ 
             print(i)
 
         dd = dd + dd.T
