@@ -211,8 +211,9 @@ class LinearDecodingSimilarityMulti:
         for i in range(len(reps)):
             for j in range(len(reps)):
                 if j < i:
+                  # if True:  
 
-
+                    
                     # if self.center_columns:
                     #     X = reps[i] - np.mean(reps[i], axis=0)
                     #     Y = reps[j] - np.mean(reps[j], axis=0)
