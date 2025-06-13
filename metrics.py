@@ -209,9 +209,9 @@ class LinearDecodingSimilarityMulti:
         """
         ds = np.zeros((len(reps), len(reps)))
         for i in range(len(reps)):
-            for j in range(len(reps)):
+            for j in range(len(reps)): #[len(reps)-1]:#range(len(reps)):
                 if j < i:
-                  # if True:  
+                # if True:  
 
                     
                     # if self.center_columns:
