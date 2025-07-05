@@ -212,10 +212,13 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
         for key, feat in feature_outputs.items():
             all_features[key].append(feat.cpu().numpy())
 
-        all_features['pixels'].append(batch_imgs)
+        # all_features['pixels'].append(batch_imgs)
+        all_features['pixels'].append(batch_tensors)
 
         print(i)
 
+    # all_features['pixels'] = 
+    
     # Concatenate results for each key.
     activations = {key: np.concatenate(val, axis=0) for key, val in all_features.items()}
 
