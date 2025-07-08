@@ -104,14 +104,19 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
     Process images through the given model in batches and return a dictionary
     containing activations for each recorded feature.
     """
-    if weights == "first":
-        weight_enum = torch.hub.load("pytorch/vision", "get_model_weights", name=modelname)
-        weights_avail = [weight for weight in weight_enum]
-        loaded_weights = weights_avail[0]
-    elif weights == 'random':
-        loaded_weights = None
+    torchvision_avail_models = models.list_models(module=torchvision.models)
+    if modelname in torchvision_avail_models:
+        if weights == "first":
+            weight_enum = torch.hub.load("pytorch/vision", "get_model_weights", name=modelname)
+            weights_avail = [weight for weight in weight_enum]
+            loaded_weights = weights_avail[0]
+        elif weights == 'random':
+            loaded_weights = None
+    
+        model = torch.hub.load('pytorch/vision', modelname, weights=loaded_weights)
 
-    model = torch.hub.load('pytorch/vision', modelname, weights=loaded_weights)
+    elif modelname == 'dinov2_vitb14':
+        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print(f'Using {device} for inference')
@@ -182,7 +187,7 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
     #         print(name)
 
     # load preprocessing        
-    if hasattr(loaded_weights, 'transforms') and callable(loaded_weights.transforms):
+    if (modelname in torchvision_avail_models) and hasattr(loaded_weights, 'transforms') and callable(loaded_weights.transforms):
         preprocess = loaded_weights.transforms()
         print("Preprocessing pipeline:")
         print(preprocess)
