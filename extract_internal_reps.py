@@ -36,7 +36,7 @@ def get_model_activations_llama(modelname, model, tokenizer, prompt, max_new_tok
     # for name, module in model.named_modules():
     #     print(name)
     
-    # Example: Register hooks for all the decoder layers (adjust based on your model's structure)
+    # Example: Register hooks for all the decoder layers
     for i in range(model.config.num_hidden_layers):
         layer_name = f"model.layers.{i}"
         layer = model.get_submodule(layer_name)
