@@ -164,13 +164,13 @@ class LinearDecodingSimilarityMulti:
                     cached.append(KX)
 
             else: 
-                if self.a == 0 and self.b == 1:
+                if self.a == 0:
                     if returnGinv == True:
-                        GXinv = np.identity(Nx)
+                        GXinv = (1/self.b)*np.identity(Nx)
                         cached.append(GXinv)
                     else:
                         # KX = (1/Nx)*(1/M)*X@(X.T) # This could be made faster
-                        KX = (1/M)*X@(X.T) # This could be made faster
+                        KX = (self.b/M)*X@(X.T) # This could be made faster
 
                         cached.append(KX)   
                 else:
