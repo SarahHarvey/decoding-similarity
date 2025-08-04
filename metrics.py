@@ -170,7 +170,7 @@ class LinearDecodingSimilarityMulti:
                         cached.append(GXinv)
                     else:
                         # KX = (1/Nx)*(1/M)*X@(X.T) # This could be made faster
-                        KX = (self.b/M)*X@(X.T) # This could be made faster
+                        KX = (self.b/(M))*X@(X.T) # This could be made faster
 
                         cached.append(KX)   
                 else:
