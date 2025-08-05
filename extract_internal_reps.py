@@ -215,6 +215,11 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
             for key in feature_outputs.keys():
                 all_features[key] = []
         for key, feat in feature_outputs.items():
+            # rawrep = feat.cpu().numpy()
+            # rawrep = rawrep.reshape((rawrep.shape[0], np.prod(list(rawrep.shape[1:])) ))
+            # if opnorm == True:
+            #     print(rawrep.shape)
+            #     rawrep = rawrep/np.linalg.norm(rawrep, ord=2)
             all_features[key].append(feat.cpu().numpy())
 
         # all_features['pixels'].append(batch_imgs)
@@ -227,6 +232,7 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
     # Concatenate results for each key.
     activations = {key: np.concatenate(val, axis=0) for key, val in all_features.items()}
 
+    
     if saverep:
         save_dir = os.path.dirname(os.getcwd())
         repDict = {}
