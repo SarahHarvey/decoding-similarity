@@ -240,6 +240,8 @@ class LinearDecodingSimilarityMulti:
                     # Compute inner product between (sample x sample) normalized covariance matrices.
             
                     ds[i,j] = np.trace(KX@Cz@KY)/np.sqrt((np.trace(KX@Cz@KX)*np.trace(KY@Cz@KY)) )  
+                    # ds[i,j] = np.trace(KX@Cz@KY) 
+
 
             print(i)
 
