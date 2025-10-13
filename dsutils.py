@@ -13,8 +13,109 @@ from torch import nn
 # from torchvision import models
 
 
+def mse_loss(y_true, y_pred):
+    # Example: weighted MSE (or any custom logic)
+    return np.mean((y_true - y_pred) ** 2)
 
-class Frechet:
+def rbf_kernel(X, Y=None, gamma=1.0):
+    """
+    Evaluate the RBF (Gaussian) kernel between two sets of vectors.
+
+    Parameters:
+    ----------
+    X : ndarray of shape (n_samples_X, n_features)
+    Y : ndarray of shape (n_samples_Y, n_features), optional
+        If None, computes the kernel between X and itself.
+    gamma : float
+        Kernel coefficient (1 / (2 * sigma^2)).
+
+    Returns:
+    -------
+    K : ndarray of shape (n_samples_X, n_samples_Y)
+        RBF kernel matrix.
+    """
+    X = np.atleast_2d(X)
+    Y = np.atleast_2d(Y) if Y is not None else X
+
+    # Squared Euclidean distance between each pair
+    X_norm = np.sum(X ** 2, axis=1).reshape(-1, 1)
+    Y_norm = np.sum(Y ** 2, axis=1).reshape(1, -1)
+    dist_sq = X_norm + Y_norm - 2 * np.dot(X, Y.T)
+
+    # RBF kernel matrix
+    K = np.exp(-gamma * dist_sq)
+    return K
+
+
+class genKernelRegression:
+    
+    def __init__(self,  center_columns=True, a=0, b=1, gamma = 1.0, fit_intercept=False):
+        self.center_columns = center_columns
+        self.a = a
+        self.b = b
+        self.gamma = gamma
+        self.fit_intercept = fit_intercept
+        self.coef_ = None
+        self.intercept_ = None
+
+
+    def _add_intercept(self, X):
+        return np.hstack([np.ones((X.shape[0], 1)), X])
+
+    def fit(self, X, Z):
+        X = np.asarray(X)
+        # y = np.asarray(y).reshape(-1, 1)
+        Z = np.asarray(Z)
+
+        if self.center_columns:
+            X = X - np.mean(X, axis=0)
+
+        if self.fit_intercept:
+            X = self._add_intercept(X)
+
+        n_features = X.shape[1]
+        I = np.eye(n_features)
+        Im = np.eye(X.shape[0])
+        
+        if self.fit_intercept:
+            I[0, 0] = 0  # do not regularize intercept
+
+        # Closed-form kernel regression solution:
+
+        KX = rbf_kernel(X, gamma = self.gamma)
+        # XtX = X.T @ X
+        # Xty = X.T @ y
+        self.weights_ = np.linalg.inv(self.a*KX + self.b * Im) @ Z
+
+        if self.fit_intercept:
+            self.intercept_ = self.weights_[0, 0]
+            self.coef_ = self.weights_[1:, 0]
+        else:
+            self.intercept_ = 0.0
+            self.coef_ = self.weights_
+
+        self.Xtrain = X
+        
+        return self
+
+    def predict(self, X):
+        X = np.asarray(X)
+        KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma)
+        if self.fit_intercept:
+            return self.intercept_ + KXXtrain @ self.coef_
+        else:
+            return KXXtrain @ self.coef_
+
+    def score(self, X, Z):
+        """R² score"""
+        Z_pred = self.predict(X)
+        ss_res = np.sum((Z - Z_pred) ** 2)
+        ss_tot = np.sum((Z - np.mean(Z)) ** 2)
+        return 1 - ss_res / ss_tot
+
+
+
+class Frechet:  # NEEDS REVISITING
     
     def __init__(self):
         pass
