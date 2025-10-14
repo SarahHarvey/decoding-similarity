@@ -47,9 +47,31 @@ def rbf_kernel(X, Y=None, gamma=1.0):
     return K
 
 
+def linear_kernel(X, Y=None):
+    """
+    Evaluate the linear kernel between two sets of vectors.
+
+    Parameters:
+    ----------
+    X : ndarray of shape (n_samples_X, n_features)
+    Y : ndarray of shape (n_samples_Y, n_features), optional
+        If None, computes the kernel between X and itself.
+    Returns:
+    -------
+    K : ndarray of shape (n_samples_X, n_samples_Y)
+        linear kernel matrix.
+    """
+    X = np.atleast_2d(X)
+    Y = np.atleast_2d(Y) if Y is not None else X
+
+    # linear kernel matrix
+    K = X@(Y.T)
+    return K
+
+
 class genKernelRegression:
     
-    def __init__(self,  center_columns=True, a=0, b=1, gamma = 1.0, fit_intercept=False):
+    def __init__(self,  center_columns=True, kernel = 'linear',  a=0, b=1, gamma = 1.0, fit_intercept=False):
         self.center_columns = center_columns
         self.a = a
         self.b = b
@@ -57,6 +79,7 @@ class genKernelRegression:
         self.fit_intercept = fit_intercept
         self.coef_ = None
         self.intercept_ = None
+        self.kernel = kernel
 
 
     def _add_intercept(self, X):
@@ -82,7 +105,13 @@ class genKernelRegression:
 
         # Closed-form kernel regression solution:
 
-        KX = rbf_kernel(X, gamma = self.gamma)
+        if self.kernel == 'rbf':
+            KX = rbf_kernel(X, gamma = self.gamma)
+        elif self.kernel == 'linear':
+            KX = linear_kernel(X)
+        else: 
+            KX = linear_kernel(X)
+            
         # XtX = X.T @ X
         # Xty = X.T @ y
         self.weights_ = np.linalg.inv(self.a*KX + self.b * Im) @ Z
@@ -100,7 +129,13 @@ class genKernelRegression:
 
     def predict(self, X):
         X = np.asarray(X)
-        KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma)
+        if self.kernel == 'rbf':
+            KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma)
+        elif self.kernel == 'linear':
+            KXXtrain = linear_kernel(X,self.Xtrain)
+        else: 
+            KXXtrain = linear_kernel(X,self.Xtrain)
+        # KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma)
         if self.fit_intercept:
             return self.intercept_ + KXXtrain @ self.coef_
         else:
