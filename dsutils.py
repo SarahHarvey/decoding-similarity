@@ -87,7 +87,6 @@ class genKernelRegression:
 
     def fit(self, X, Z):
         X = np.asarray(X)
-        # y = np.asarray(y).reshape(-1, 1)
         Z = np.asarray(Z)
 
         if self.center_columns:
@@ -97,7 +96,7 @@ class genKernelRegression:
             X = self._add_intercept(X)
 
         n_features = X.shape[1]
-        I = np.eye(n_features)
+        # I = np.eye(n_features)
         Im = np.eye(X.shape[0])
         
         if self.fit_intercept:
