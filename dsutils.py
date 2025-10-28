@@ -7,17 +7,53 @@ import warnings
 import numpy as np
 import numpy.typing as npt
 from typing import Tuple
+from sklearn.model_selection import KFold
+from tqdm import tqdm  # optional for progress bar
+from itertools import product
+
 
 
 from torch import nn
 # from torchvision import models
+
+def cross_val_score_custom(model_class, X, Z, param_grid, loss_fn, cv=5, kernel='linear'):
+    
+    param_combos = list(product(*param_grid.values()))
+
+    best_score = float('inf')
+    best_params = None
+
+    kf = KFold(n_splits=cv, shuffle=True, random_state=42)
+
+    for params in tqdm(param_combos):
+        param_dict = dict(zip(param_grid.keys(), params))
+        losses = []
+
+        for train_idx, val_idx in kf.split(X):
+            X_train, X_val = X[train_idx], X[val_idx]
+            Z_train, Z_val = Z[train_idx], Z[val_idx]
+
+            # Initialize and fit the model
+            probe = model_class(**param_dict, kernel = kernel, center_columns=True, fit_intercept=False)
+            probe.fit(X_train, Z_train)
+
+            Z_pred = probe.predict(X_val)
+            loss = loss_fn(Z_val, Z_pred)
+            losses.append(loss)
+
+        avg_loss = np.mean(losses)
+        if avg_loss < best_score:
+            best_score = avg_loss
+            best_params = param_dict
+
+    return best_params, best_score, X_train, Z_train
 
 
 def mse_loss(y_true, y_pred):
     # Example: weighted MSE (or any custom logic)
     return np.mean((y_true - y_pred) ** 2)
 
-def rbf_kernel(X, Y=None, gamma=1.0):
+def rbf_kernel(X, Y=None, gamma=1.0, center=False):
     """
     Evaluate the RBF (Gaussian) kernel between two sets of vectors.
 
@@ -36,6 +72,8 @@ def rbf_kernel(X, Y=None, gamma=1.0):
     """
     X = np.atleast_2d(X)
     Y = np.atleast_2d(Y) if Y is not None else X
+    M = X.shape[0]
+    Mp = Y.shape[0]
 
     # Squared Euclidean distance between each pair
     X_norm = np.sum(X ** 2, axis=1).reshape(-1, 1)
@@ -44,10 +82,18 @@ def rbf_kernel(X, Y=None, gamma=1.0):
 
     # RBF kernel matrix
     K = np.exp(-gamma * dist_sq)
-    return K
+
+    if center:
+        C = np.eye(M) - (1/M)*np.ones((M,M))
+        Cp = np.eye(Mp) - (1/Mp)*np.ones((Mp,Mp))
+        K = C@K@Cp
+        return K
+    else:  
+        return K
 
 
-def linear_kernel(X, Y=None):
+
+def linear_kernel(X, Y=None, center=False):
     """
     Evaluate the linear kernel between two sets of vectors.
 
@@ -63,10 +109,18 @@ def linear_kernel(X, Y=None):
     """
     X = np.atleast_2d(X)
     Y = np.atleast_2d(Y) if Y is not None else X
+    M = X.shape[0]
+    Mp = Y.shape[0]
 
     # linear kernel matrix
     K = X@(Y.T)
-    return K
+    if center:
+        C = np.eye(M) - (1/M)*np.ones((M,M))
+        Cp = np.eye(Mp) - (1/Mp)*np.ones((Mp,Mp))
+        K = C@K@Cp
+        return K
+    else:  
+        return K
 
 
 class genKernelRegression:
@@ -105,16 +159,23 @@ class genKernelRegression:
         # Closed-form kernel regression solution:
 
         if self.kernel == 'rbf':
-            KX = rbf_kernel(X, gamma = self.gamma)
+            KX = rbf_kernel(X, gamma = self.gamma, center=True)
         elif self.kernel == 'linear':
-            KX = linear_kernel(X)
+            KX = linear_kernel(X,center=True)
         else: 
-            KX = linear_kernel(X)
+            KX = linear_kernel(X,center=True)
             
         # XtX = X.T @ X
-        # Xty = X.T @ y
-        self.weights_ = np.linalg.inv(self.a*KX + self.b * Im) @ Z
+        # Xty = X.T @ y\
+        # print(self.b)
+        # print('  ')
+        # print(self.gamma)
+        try:
+            self.weights_ = np.linalg.inv(self.a*KX + self.b * Im) @ Z
 
+        except np.linalg.LinAlgError:
+            print(f"Skipping hyperparams {self.a}, {self.b}, {self.gamma}: matrix is singular.")
+            self.weights_ = np.full(Z.shape, np.nan)
         if self.fit_intercept:
             self.intercept_ = self.weights_[0, 0]
             self.coef_ = self.weights_[1:, 0]
@@ -129,11 +190,11 @@ class genKernelRegression:
     def predict(self, X):
         X = np.asarray(X)
         if self.kernel == 'rbf':
-            KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma)
+            KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma, center=True)
         elif self.kernel == 'linear':
-            KXXtrain = linear_kernel(X,self.Xtrain)
+            KXXtrain = linear_kernel(X,self.Xtrain, center=True)
         else: 
-            KXXtrain = linear_kernel(X,self.Xtrain)
+            KXXtrain = linear_kernel(X,self.Xtrain, center=True)
         # KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma)
         if self.fit_intercept:
             return self.intercept_ + KXXtrain @ self.coef_
