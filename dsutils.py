@@ -61,6 +61,60 @@ def inner_product_loss(y_true, y_pred, params):
     return np.mean((y_true - y_pred) ** 2)
     # return -np.trace(2* y_pred.T @ y_true - a* y_pred.T @ y_pred) #- y_true.T @ y_true)
 
+def laplacian_kernel(X, Y=None, gamma=1.0, center=False):   
+    """
+    Evaluate the Laplacian kernel between two sets of vectors.
+
+    Parameters:
+    ----------
+    X : ndarray of shape (n_samples_X, n_features)
+    Y : ndarray of shape (n_samples_Y, n_features), optional
+        If None, computes the kernel between X and itself.
+    gamma : float
+        Kernel coefficient (1 / (2 * sigma^2)).
+
+    Returns:
+    -------
+    K : ndarray of shape (n_samples_X, n_samples_Y)
+        Laplacian kernel matrix.
+    """
+    # Return un-centered Laplacian kernel between X and Y (if Y is None, between X and itself).
+    X = np.atleast_2d(X)
+    Y = np.atleast_2d(Y) if Y is not None else X
+
+    # Compute pairwise L1 distances
+    dist = np.sum(np.abs(X[:, np.newaxis, :] - Y[np.newaxis, :, :]), axis=2)
+
+    # Laplacian kernel matrix (not centered)
+    K = np.exp(-gamma * dist)
+    return K    
+
+def polynomial_kernel(X, Y=None, degree=2, coef0=1, center=False):
+    """
+    Evaluate the polynomial kernel between two sets of vectors.
+
+    Parameters:
+    ----------
+    X : ndarray of shape (n_samples_X, n_features)
+    Y : ndarray of shape (n_samples_Y, n_features), optional
+        If None, computes the kernel between X and itself.
+    degree : int
+        Degree of the polynomial kernel.
+    coef0 : float
+        Independent term in polynomial kernel.
+
+    Returns:
+    -------
+    K : ndarray of shape (n_samples_X, n_samples_Y)
+        Polynomial kernel matrix.
+    """
+    # Return un-centered polynomial kernel between X and Y (if Y is None, between X and itself).
+    X = np.atleast_2d(X)
+    Y = np.atleast_2d(Y) if Y is not None else X
+
+    # Polynomial kernel matrix (not centered)
+    K = (X @ Y.T + coef0) ** degree
+    return K
 
 def rbf_kernel(X, Y=None, gamma=1.0, center=False):
     """
@@ -235,7 +289,7 @@ class genKernelRegression:
         """R² score"""
         Z_pred = self.predict(X)
         ss_res = np.sum((Z - Z_pred) ** 2)
-        ss_tot = np.sum((Z - np.mean(Z,axis=0)) ** 2)
+        ss_tot = np.sum((Z - np.mean(Z,axis=1, keepdims=True)) ** 2)
         return 1 - ss_res / ss_tot
 
 
