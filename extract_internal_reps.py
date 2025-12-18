@@ -118,6 +118,17 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
     elif modelname == 'dinov2_vitb14':
         model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
 
+    elif modelname == "FCN_ResNet50":
+        from torchvision.models.segmentation import fcn_resnet50, FCN_ResNet50_Weights
+        if weights == "default":
+            loaded_weights = FCN_ResNet50_Weights.DEFAULT
+            model = fcn_resnet50(weights=loaded_weights)
+        elif weights == "random":
+            loaded_weights = None
+            model = fcn_resnet50(weights=loaded_weights)
+        else:
+            raise ValueError("Weights option not recognized for FCN_ResNet50")
+
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print(f'Using {device} for inference')
 

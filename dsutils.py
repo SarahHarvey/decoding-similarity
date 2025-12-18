@@ -289,7 +289,7 @@ class genKernelRegression:
         """R² score"""
         Z_pred = self.predict(X)
         ss_res = np.sum((Z - Z_pred) ** 2)
-        ss_tot = np.sum((Z - np.mean(Z,axis=1, keepdims=True)) ** 2)
+        ss_tot = np.sum((Z) ** 2)
         return 1 - ss_res / ss_tot
 
 
