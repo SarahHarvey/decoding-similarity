@@ -1,4 +1,5 @@
 import os
+from xml.sax.handler import all_features
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -234,8 +235,7 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
             all_features[key].append(feat.cpu().numpy())
 
         # all_features['pixels'].append(batch_imgs)
-        all_features['pixels'].append(batch_tensors)
-
+        all_features['pixels'].append(batch_tensors.cpu().numpy())
         print(i)
 
     # all_features['pixels'] = 
@@ -245,10 +245,10 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
 
     
     if saverep:
-        save_dir = os.path.dirname(os.getcwd())
+        save_dir = os.path.dirname(os.path.abspath(__file__))
         repDict = {}
         repDict[modelname] = activations
-        with open(save_dir + '/reps/' + modelname + '_'+ filename + '.pkl', 'wb') as f:
+        with open(os.path.join(save_dir, 'reps', modelname + '_' + filename + '.pkl'), 'wb') as f:
             pickle.dump(repDict, f)
 
     return activations

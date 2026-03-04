@@ -22,6 +22,9 @@ def cross_val_score_custom(model_class, X, Z, param_grid, loss_fn, cv=5, kernel=
 
     best_score = float('inf')
     best_params = None
+    
+    # Dictionary to store all parameters tried and their coefficients
+    all_params_coefs = {}
 
     kf = KFold(n_splits=cv, shuffle=True, random_state=42)
 
@@ -38,18 +41,20 @@ def cross_val_score_custom(model_class, X, Z, param_grid, loss_fn, cv=5, kernel=
             probe.fit(X_train, Z_train)
 
             Z_pred = probe.predict(X_val)
-            loss = loss_fn(Z_val, Z_pred)
+            loss = loss_fn(Z_val, Z_pred, params)
             losses.append(loss)
+
+            all_params_coefs[tuple(params)] = probe.coef_
 
         avg_loss = np.mean(losses)
         if avg_loss < best_score:
             best_score = avg_loss
             best_params = param_dict
 
-    return best_params, best_score, X_train, Z_train
+    return best_params, best_score, X_train, Z_train  #, all_params_coefs
 
 
-def mse_loss(y_true, y_pred):
+def mse_loss(y_true, y_pred, params):
     # Example: weighted MSE (or any custom logic)
     M = y_true.shape[0]
     return np.mean((y_true - y_pred) ** 2)
@@ -61,60 +66,6 @@ def inner_product_loss(y_true, y_pred, params):
     return np.mean((y_true - y_pred) ** 2)
     # return -np.trace(2* y_pred.T @ y_true - a* y_pred.T @ y_pred) #- y_true.T @ y_true)
 
-def laplacian_kernel(X, Y=None, gamma=1.0, center=False):   
-    """
-    Evaluate the Laplacian kernel between two sets of vectors.
-
-    Parameters:
-    ----------
-    X : ndarray of shape (n_samples_X, n_features)
-    Y : ndarray of shape (n_samples_Y, n_features), optional
-        If None, computes the kernel between X and itself.
-    gamma : float
-        Kernel coefficient (1 / (2 * sigma^2)).
-
-    Returns:
-    -------
-    K : ndarray of shape (n_samples_X, n_samples_Y)
-        Laplacian kernel matrix.
-    """
-    # Return un-centered Laplacian kernel between X and Y (if Y is None, between X and itself).
-    X = np.atleast_2d(X)
-    Y = np.atleast_2d(Y) if Y is not None else X
-
-    # Compute pairwise L1 distances
-    dist = np.sum(np.abs(X[:, np.newaxis, :] - Y[np.newaxis, :, :]), axis=2)
-
-    # Laplacian kernel matrix (not centered)
-    K = np.exp(-gamma * dist)
-    return K    
-
-def polynomial_kernel(X, Y=None, degree=2, coef0=1, center=False):
-    """
-    Evaluate the polynomial kernel between two sets of vectors.
-
-    Parameters:
-    ----------
-    X : ndarray of shape (n_samples_X, n_features)
-    Y : ndarray of shape (n_samples_Y, n_features), optional
-        If None, computes the kernel between X and itself.
-    degree : int
-        Degree of the polynomial kernel.
-    coef0 : float
-        Independent term in polynomial kernel.
-
-    Returns:
-    -------
-    K : ndarray of shape (n_samples_X, n_samples_Y)
-        Polynomial kernel matrix.
-    """
-    # Return un-centered polynomial kernel between X and Y (if Y is None, between X and itself).
-    X = np.atleast_2d(X)
-    Y = np.atleast_2d(Y) if Y is not None else X
-
-    # Polynomial kernel matrix (not centered)
-    K = (X @ Y.T + coef0) ** degree
-    return K
 
 def rbf_kernel(X, Y=None, gamma=1.0, center=False):
     """
@@ -133,18 +84,26 @@ def rbf_kernel(X, Y=None, gamma=1.0, center=False):
     K : ndarray of shape (n_samples_X, n_samples_Y)
         RBF kernel matrix.
     """
-    # Return un-centered RBF kernel between X and Y (if Y is None, between X and itself).
     X = np.atleast_2d(X)
     Y = np.atleast_2d(Y) if Y is not None else X
+    M = X.shape[0]
+    Mp = Y.shape[0]
 
     # Squared Euclidean distance between each pair
     X_norm = np.sum(X ** 2, axis=1).reshape(-1, 1)
     Y_norm = np.sum(Y ** 2, axis=1).reshape(1, -1)
     dist_sq = X_norm + Y_norm - 2 * np.dot(X, Y.T)
 
-    # RBF kernel matrix (not centered)
+    # RBF kernel matrix
     K = np.exp(-gamma * dist_sq)
-    return K
+
+    if center:
+        C = np.eye(M) - (1/M)*np.ones((M,M))
+        Cp = np.eye(Mp) - (1/Mp)*np.ones((Mp,Mp))
+        K = C@K@Cp
+        return K
+    else:  
+        return K
 
 
 
@@ -162,26 +121,22 @@ def linear_kernel(X, Y=None, center=False):
     K : ndarray of shape (n_samples_X, n_samples_Y)
         linear kernel matrix.
     """
-    # Return un-centered linear kernel between X and Y (if Y is None, between X and itself).
     X = np.atleast_2d(X)
     Y = np.atleast_2d(Y) if Y is not None else X
+    M = X.shape[0]
+    Mp = Y.shape[0]
+    N = X.shape[1]
 
-    # linear kernel matrix (not centered)
-    K = X @ (Y.T)
-    return K
+    # linear kernel matrix
+    K = X@(Y.T)
+    if center:
+        C = np.eye(M) - (1/M)*np.ones((M,M))
+        Cp = np.eye(Mp) - (1/Mp)*np.ones((Mp,Mp))
+        K = C@K@Cp
+        return K
+    else:  
+        return K
 
-def center_train_kernel(K):
-    """
-    Center a training kernel matrix K (n x n) in feature space.
-    Returns the centered kernel and the column-means and total mean needed to center cross-kernels later.
-    """
-    K = np.asarray(K)
-    n = K.shape[0]
-    col_mean = np.mean(K, axis=0)  # (n,)
-    row_mean = np.mean(K, axis=1)  # (n,)
-    total_mean = np.mean(K)
-    Kc = K - row_mean[:, None] - col_mean[None, :] + total_mean
-    return Kc, col_mean, total_mean
 
 class genKernelRegression:
     
@@ -198,6 +153,7 @@ class genKernelRegression:
 
     def _add_intercept(self, X):
         return np.hstack([np.ones((X.shape[0], 1)), X])
+
     def fit(self, X, Z):
         X = np.asarray(X)
         Z = np.asarray(Z)
@@ -209,45 +165,34 @@ class genKernelRegression:
             X = self._add_intercept(X)
 
         n_features = X.shape[1]
+        # I = np.eye(n_features)
         Im = np.eye(X.shape[0])
-        # Note: for kernel-formulation we regularize in sample-space with Im.
-        # If `fit_intercept=True` a different formulation is required to avoid regularizing the intercept
-        # separately; handling that is out-of-scope for the kernel solver here.
+        
+        if self.fit_intercept:
+            I[0, 0] = 0  # do not regularize intercept
 
         # Closed-form kernel regression solution:
+
         if self.kernel == 'rbf':
-            KX = rbf_kernel(X, gamma=self.gamma)
+            KX = rbf_kernel(X, gamma = self.gamma, center=True)
         elif self.kernel == 'linear':
-            KX = linear_kernel(X)
-        else:
-            KX = linear_kernel(X)
-
-        # Center the training kernel and save statistics for centering cross-kernels at predict time
-        KXc, K_col_mean, K_total_mean = center_train_kernel(KX)
-        # store centering stats for use in predict
-        self.K_col_mean = K_col_mean
-        self.K_total_mean = K_total_mean
-
-        # Solve for weights W in (a*KXc + b*I) W = Z
-        A = self.a * KXc + self.b * Im
+            KX = linear_kernel(X,center=True)
+        else: 
+            KX = linear_kernel(X,center=True)
+            
+        # XtX = X.T @ X
+        # Xty = X.T @ y\
+        # print(self.b)
+        # print('  ')
+        # print(self.gamma)
         try:
-            # Prefer direct solve for multiple RHS (more stable and efficient than inverting)
-            self.weights_ = np.linalg.solve(A, Z)
-            # Check condition number; if too large, fall back to pseudoinverse for stability
-            condA = np.linalg.cond(A)
-            if not np.isfinite(condA) or condA > 1e12:
-                # fallback to pseudoinverse
-                self.weights_ = np.linalg.pinv(A) @ Z
-        except np.linalg.LinAlgError:
-            # If singular, compute minimum-norm solution using pseudoinverse instead of returning NaNs
-            # This prevents CV from always picking huge regularization (b) just to avoid singularity.
-            try:
-                self.weights_ = np.linalg.pinv(A) @ Z
-            except Exception:
-                # As a last resort, fill with NaNs to signal failure
-                print(f"Skipping hyperparams {self.a}, {self.b}, {self.gamma}: matrix is singular and pinv failed.")
-                self.weights_ = np.full(Z.shape, np.nan)
+            # self.weights_ = np.linalg.inv(self.a*KX + self.b *Im) @ Z
+            # self.weights_ = np.linalg.pinv(self.a*KX + self.b *Im) @ Z
+            self.weights_ = np.linalg.solve(self.a*KX + self.b *Im, Im) @ Z
 
+        except np.linalg.LinAlgError:
+            print(f"Skipping hyperparams {self.a}, {self.b}, {self.gamma}: matrix is singular.")
+            self.weights_ = np.full(Z.shape, np.nan)
         if self.fit_intercept:
             self.intercept_ = self.weights_[0, 0]
             self.coef_ = self.weights_[1:, 0]
@@ -256,6 +201,7 @@ class genKernelRegression:
             self.coef_ = self.weights_
 
         self.Xtrain = X
+        
         return self
 
     def predict(self, X):
@@ -263,33 +209,22 @@ class genKernelRegression:
         M = X.shape[0]
 
         if self.kernel == 'rbf':
-            KXXtrain = rbf_kernel(X, self.Xtrain, gamma=self.gamma)
+            KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma, center=True)
         elif self.kernel == 'linear':
-            KXXtrain = linear_kernel(X, self.Xtrain)
-        else:
-            KXXtrain = linear_kernel(X, self.Xtrain)
-
-        # Center cross-kernel using training kernel statistics computed in fit
-        if hasattr(self, 'K_col_mean') and hasattr(self, 'K_total_mean'):
-            row_mean_xt = np.mean(KXXtrain, axis=1)  # (m,)
-            KXXtrain_c = KXXtrain - row_mean_xt[:, None] - np.ones((M, 1)) @ self.K_col_mean[None, :] + self.K_total_mean
-        else:
-            # If centering stats are not available fall back to simple double-centering
-            Mtrain = self.Xtrain.shape[0]
-            Hm = np.eye(M) - (1 / M) * np.ones((M, M))
-            Hn = np.eye(Mtrain) - (1 / Mtrain) * np.ones((Mtrain, Mtrain))
-            KXXtrain_c = Hm @ KXXtrain @ Hn
-
+            KXXtrain = linear_kernel(X,self.Xtrain, center=True)
+        else: 
+            KXXtrain = linear_kernel(X,self.Xtrain, center=True)
+        # KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma)
         if self.fit_intercept:
-            return self.intercept_ + KXXtrain_c @ self.coef_
+            return self.intercept_ + KXXtrain @ self.coef_
         else:
-            return KXXtrain_c @ self.coef_
+            return KXXtrain @ self.coef_
 
     def score(self, X, Z):
         """R² score"""
         Z_pred = self.predict(X)
         ss_res = np.sum((Z - Z_pred) ** 2)
-        ss_tot = np.sum((Z) ** 2)
+        ss_tot = np.sum((Z - np.mean(Z,axis=0)) ** 2)
         return 1 - ss_res / ss_tot
 
 
