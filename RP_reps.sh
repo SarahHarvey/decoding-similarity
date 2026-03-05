@@ -10,13 +10,13 @@
 #SBATCH --partition=gpu                  # GPU partition 
 
 MODELNAME=${1:-resnet50}   # Default to resnet50 if not provided
-IMAGENET_SAMPLE=${2:-imagenet_random_sample_5000_v1}  # Default to imagenet_random_sample_5000_v1 if not provided
+IMAGE_SAMPLE=${2:-imagenet_random_sample_5000_v1}  # Default to imagenet_random_sample_5000_v1 if not provided
 P=${3:-5001}  # Default to 5001 dimensions if not provided
 
 module load python
 srun hostname
 
 # Build the command with optional flags
-CMD="python RP_reps.py --model_name $MODELNAME --imagenet_sample $IMAGENET_SAMPLE --P $P"
+CMD="python RP_reps.py --model_name $MODELNAME --image_sample $IMAGE_SAMPLE --P $P"
 
 srun $CMD

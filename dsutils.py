@@ -160,6 +160,10 @@ class genKernelRegression:
 
         if self.center_columns:
             X = X - np.mean(X, axis=0)
+            self.Z_mean_ = np.mean(Z, axis=0)
+            Z = Z - self.Z_mean_
+        else:
+            self.Z_mean_ = 0.0
 
         if self.fit_intercept:
             X = self._add_intercept(X)
@@ -188,11 +192,15 @@ class genKernelRegression:
         try:
             # self.weights_ = np.linalg.inv(self.a*KX + self.b *Im) @ Z
             # self.weights_ = np.linalg.pinv(self.a*KX + self.b *Im) @ Z
-            self.weights_ = np.linalg.solve(self.a*KX + self.b *Im, Im) @ Z
+            inv_reg = np.linalg.solve(self.a*KX + self.b *Im, Im)
+            self.weights_ = inv_reg @ Z
+            H = KX @ inv_reg
+            self.effective_dof_ = np.trace(H)
 
         except np.linalg.LinAlgError:
             print(f"Skipping hyperparams {self.a}, {self.b}, {self.gamma}: matrix is singular.")
             self.weights_ = np.full(Z.shape, np.nan)
+            self.effective_dof_ = np.nan
         if self.fit_intercept:
             self.intercept_ = self.weights_[0, 0]
             self.coef_ = self.weights_[1:, 0]
@@ -216,9 +224,9 @@ class genKernelRegression:
             KXXtrain = linear_kernel(X,self.Xtrain, center=True)
         # KXXtrain = rbf_kernel(X,self.Xtrain, gamma = self.gamma)
         if self.fit_intercept:
-            return self.intercept_ + KXXtrain @ self.coef_
+            return self.intercept_ + KXXtrain @ self.coef_ + self.Z_mean_
         else:
-            return KXXtrain @ self.coef_
+            return KXXtrain @ self.coef_ + self.Z_mean_
 
     def score(self, X, Z):
         """R² score"""
@@ -226,6 +234,88 @@ class genKernelRegression:
         ss_res = np.sum((Z - Z_pred) ** 2)
         ss_tot = np.sum((Z - np.mean(Z,axis=0)) ** 2)
         return 1 - ss_res / ss_tot
+
+    def effective_dof(self, a=None, b=None, gamma=None):
+        """Effective degrees of freedom for kernel ridge regression.
+
+        Computes tr(K_X (a * K_X + b * I)^{-1}), which is the trace of the
+        smoother (hat) matrix H that maps training targets to fitted values.
+
+        When called with the same hyperparameters used during fit (the
+        default), returns the value cached by fit() to avoid redundant
+        computation.  Pass different a, b, or gamma to recompute.
+
+        Parameters
+        ----------
+        a : float, optional
+            Kernel weight. Defaults to self.a.
+        b : float, optional
+            Ridge penalty. Defaults to self.b.
+        gamma : float, optional
+            RBF kernel bandwidth (only used when kernel='rbf').
+            Defaults to self.gamma.
+
+        Returns
+        -------
+        dof : float
+            Effective degrees of freedom (trace of the hat matrix).
+        """
+        if a is None:
+            a = self.a
+        if b is None:
+            b = self.b
+        if gamma is None:
+            gamma = self.gamma
+
+        # Return cached value when hyperparameters match those used in fit()
+        if a == self.a and b == self.b and gamma == self.gamma:
+            return self.effective_dof_
+
+        X = self.Xtrain
+
+        if self.kernel == 'rbf':
+            KX = rbf_kernel(X, gamma=gamma, center=True)
+        else:
+            KX = linear_kernel(X, center=True)
+
+        n = KX.shape[0]
+        Im = np.eye(n)
+        H = KX @ np.linalg.solve(a * KX + b * Im, Im)
+        return np.trace(H)
+
+    def rkhs_norm(self, gamma=None):
+        """RKHS norm of the fitted function fhat.
+
+        Computes ||fhat||_H^2 = alpha^T K_X alpha, where alpha are the
+        representer weights obtained from fit() and K_X is the kernel
+        matrix evaluated on the training data.
+
+        Parameters
+        ----------
+        gamma : float, optional
+            RBF kernel bandwidth (only used when kernel='rbf').
+            Defaults to self.gamma.
+
+        Returns
+        -------
+        norm_sq : float or ndarray
+            Squared RKHS norm.  Scalar when the target Z was single-output;
+            array of shape (n_targets,) for multi-output regression.
+        """
+        if gamma is None:
+            gamma = self.gamma
+
+        X = self.Xtrain
+
+        if self.kernel == 'rbf':
+            KX = rbf_kernel(X, gamma=gamma, center=True)
+        else:
+            KX = linear_kernel(X, center=True)
+
+        alpha = self.weights_
+        # alpha^T K_X alpha; works for both single- and multi-output
+        norm_sq = np.einsum('ij,ik,kj->j', alpha, KX, alpha)
+        return norm_sq.item() if norm_sq.size == 1 else norm_sq
 
 
 

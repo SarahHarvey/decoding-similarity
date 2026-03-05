@@ -53,7 +53,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Randomly project model representations to a lower-dimensional space.')
     parser.add_argument('--model_name', type=str, default='resnet50', help='Name of model to project representations for')
-    parser.add_argument('--imagenet_sample', type=str, default='imagenet_random_sample_5000_v5', help='Name of imagenet sample')
+    parser.add_argument('--image_sample', type=str, default='imagenet_random_sample_5000_v5', help='Name of imagenet sample')
     parser.add_argument('--P', type=int, default=5001, help='Number of dimensions to project to')
     args = parser.parse_args()
-    random_proj_reps(args.model_name, args.imagenet_sample, args.P)
+    random_proj_reps(args.model_name, args.image_sample, args.P)
