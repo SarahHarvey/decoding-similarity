@@ -6,8 +6,6 @@
 #SBATCH --cpus-per-task=1                # Number of CPU cores per task
 #SBATCH --mem=256GB                      # Memory per node
 #SBATCH --time=0-01:00:00                # Time limit days-hrs:min:sec
-#SBATCH --gres=gpu:1                     # Request 1 GPU
-#SBATCH --partition=gpu                  # GPU partition 
 
 MODELNAME=${1:-resnet50}   # Default to resnet50 if not provided
 IMAGE_SAMPLE=${2:-imagenet_random_sample_5000_v1}  # Default to imagenet_random_sample_5000_v1 if not provided

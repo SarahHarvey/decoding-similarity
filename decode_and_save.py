@@ -14,6 +14,7 @@ parser.add_argument('--P', type=int, default=5001, help='Number of dimensions to
 parser.add_argument('--image_sample', type=str, default='imagenet_random_sample_5000_v1', help='Name of imagenet sample used to extract representations')
 parser.add_argument('--test_set_size', type=int, default=1000)
 parser.add_argument('--kernel', type=str, default='linear')
+parser.add_argument('--region', type=str, default='lh_hV4')
 # parser.add_argument('--eval_on_test_set', action='store_true', help='Whether to evaluate decoding performance on a held-out test set (instead of training set)')
 args = parser.parse_args()
 
@@ -46,13 +47,16 @@ print(model_name + "_" + "_".join(layer_names))
 
 # TODO:  Improve target loading!!! 
 
+# DECODE IMAGENET COLORS
 # Zfull = np.load(f'targets/C_{image_sample}.npy')
+
+# DECODE BRAIN DATA
 with open('algonauts_brain_data_joint_images_8subjects.pkl', 'rb') as f:
     brainData = pickle.load(f)
 
 # dict_keys(['lh_all', 'rh_all', 'lh_V1v', 'lh_V1d', 'lh_V2v', 'lh_V2d', 'lh_V3v', 'lh_V3d', 'lh_hV4', 'lh_EBA', 'lh_FBA-1', 'lh_FBA-2', 'lh_mTL-bodies', 'lh_OFA', 'lh_FFA-1', 'lh_FFA-2', 'lh_mTL-faces', 'lh_aTL-faces', 'lh_OPA', 'lh_PPA', 'lh_RSC', 'lh_OWFA', 'lh_VWFA-1', 'lh_VWFA-2', 'lh_mfs-words', 'lh_mTL-words', 'lh_early', 'lh_midventral', 'lh_midlateral', 'lh_midparietal', 'lh_ventral', 'lh_lateral', 'lh_parietal', 'lh_all-prf-visual', 'lh_all-bodies', 'lh_all-faces', 'lh_all-places', 'lh_all-words', 'lh_all-streams', 'rh_V1v', 'rh_V1d', 'rh_V2v', 'rh_V2d', 'rh_V3v', 'rh_V3d', 'rh_hV4', 'rh_EBA', 'rh_FBA-1', 'rh_FBA-2', 'rh_mTL-bodies', 'rh_OFA', 'rh_FFA-1', 'rh_FFA-2', 'rh_mTL-faces', 'rh_aTL-faces', 'rh_OPA', 'rh_PPA', 'rh_RSC', 'rh_OWFA', 'rh_VWFA-1', 'rh_VWFA-2', 'rh_mfs-words', 'rh_mTL-words', 'rh_early', 'rh_midventral', 'rh_midlateral', 'rh_midparietal', 'rh_ventral', 'rh_lateral', 'rh_parietal', 'rh_all-prf-visual', 'rh_all-bodies', 'rh_all-faces', 'rh_all-places', 'rh_all-words', 'rh_all-streams'])
-region = 'lh_V1v'
-Zfull = brainData[0][region] 
+region = args.region #'lh_PPA' # TODO: Make this an argument
+Zfull = brainData[0][region] - brainData[0][region].mean(axis=0)
 
 for i in range(len(brainData)):
     internal_reps.append(brainData[i]['lh_all'])
@@ -74,8 +78,8 @@ if kernel == 'linear':
 elif kernel == 'rbf':
     param_grid = {
         'a': [1],
-        'b' : list(np.logspace(-8, 3, num=8, endpoint=True, base=10.0, dtype=None, axis=0)),
-        'gamma': list(np.logspace(-8, 3, num=8, endpoint=True, base=10.0, dtype=None, axis=0))
+        'b' : list(np.logspace(-8, 3, num=10, endpoint=True, base=10.0, dtype=None, axis=0)),
+        'gamma': list(np.logspace(-8, 3, num=10, endpoint=True, base=10.0, dtype=None, axis=0))
     }
 
 # Create all parameter combinations
@@ -92,6 +96,7 @@ resultDict_all["results"] = []
 resultDict_all["kernel"] = kernel
 resultDict_all["model_name"] = model_name
 resultDict_all["image_sample"] = image_sample
+resultDict_all["test_indices"] = test_indices
 
 for i in range(len(internal_reps)):
     layer_results = []
@@ -149,5 +154,5 @@ for i in range(len(internal_reps)):
 
 print("All done.")
 
-with open(f'decoding_results/NSD_decoding_subj0_{region}_{model_name}_{kernel}_kernel_{image_sample}_RPto{P}dims.pkl', 'wb') as fp:
+with open(f'decoding_results/color_decoding_{model_name}_{kernel}_kernel_{image_sample}_RPto{P}dims.pkl', 'wb') as fp:
     pickle.dump(resultDict_all, fp)

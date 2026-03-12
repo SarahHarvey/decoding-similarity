@@ -11,8 +11,10 @@ parser.add_argument('--model_name', type=str, default='resnet50', help='Name of 
 parser.add_argument('--image_sample', type=str, default='imagenet_random_sample_5000_v1', help='Name of image sample used to extract representations')
 args = parser.parse_args()
 
-if args.image_sample == 'algonauts_joint_images_8subjects':
+if args.image_sample == 'algonauts_shared_images':
     shared_images = np.load('algonauts_joint_images_8subjects.npy')
+elif args.image_sample == 'algonauts_5000_subj01':
+    shared_images = np.load('algonauts_5000_training_images_subj01.npy')
 else:
     with open('imagenet_probe_images/' + args.image_sample + '.pkl', 'rb') as f:
         image_data = pickle.load(f)
