@@ -97,9 +97,9 @@ def get_model_activations_llama(modelname, model, tokenizer, prompt, max_new_tok
 
     return activations
 
-
-
-
+# TODO:
+# def get_dinov2_tokens(image_data, batch_size=32, saverep = True, filename = ''):
+    
 def get_model_activations(modelname, weights, image_data, batch_size=32, saverep = True, filename = ''):
     """
     Process images through the given model in batches and return a dictionary
