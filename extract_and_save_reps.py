@@ -15,6 +15,10 @@ if args.image_sample == 'algonauts_shared_images':
     shared_images = np.load('algonauts_joint_images_8subjects.npy')
 elif args.image_sample == 'algonauts_5000_subj01':
     shared_images = np.load('algonauts_5000_training_images_subj01.npy')
+elif args.image_sample == 'COCO_probe_images_and_captions_4000_v1':
+    with open(f"COCO_probe_images_and_captions/COCO_images_and_captions_4000_v1.pkl", "rb") as f:
+        data = pickle.load(f)
+        shared_images = data['images']
 else:
     with open('imagenet_probe_images/' + args.image_sample + '.pkl', 'rb') as f:
         image_data = pickle.load(f)

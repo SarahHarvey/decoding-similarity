@@ -10,11 +10,307 @@ from typing import Tuple
 from sklearn.model_selection import KFold
 from tqdm import tqdm  # optional for progress bar
 from itertools import product
-
-
-
+from scipy.optimize import brentq
 from torch import nn
 # from torchvision import models
+
+
+def rbf_kernel(X, Y=None, gamma=1.0, center=False):
+    """
+    Evaluate the RBF (Gaussian) kernel between two sets of vectors.
+
+    Parameters:
+    ----------
+    X : ndarray of shape (n_samples_X, n_features)
+    Y : ndarray of shape (n_samples_Y, n_features), optional
+        If None, computes the kernel between X and itself.
+    gamma : float
+        Kernel coefficient (1 / (2 * sigma^2)).
+
+    Returns:
+    -------
+    K : ndarray of shape (n_samples_X, n_samples_Y)
+        RBF kernel matrix.
+    """
+    X = np.atleast_2d(X)
+    Y = np.atleast_2d(Y) if Y is not None else X
+    M = X.shape[0]
+    Mp = Y.shape[0]
+
+    # Squared Euclidean distance between each pair
+    X_norm = np.sum(X ** 2, axis=1).reshape(-1, 1)
+    Y_norm = np.sum(Y ** 2, axis=1).reshape(1, -1)
+    dist_sq = X_norm + Y_norm - 2 * np.dot(X, Y.T)
+
+    # RBF kernel matrix
+    K = np.exp(-gamma * dist_sq)
+
+    if center:
+        C = np.eye(M) - (1/M)*np.ones((M,M))
+        Cp = np.eye(Mp) - (1/Mp)*np.ones((Mp,Mp))
+        K = C@K@Cp
+        return K
+    else:  
+        return K
+
+
+def linear_kernel(X, Y=None, center=False):
+    """
+    Evaluate the linear kernel between two sets of vectors.
+
+    Parameters:
+    ----------
+    X : ndarray of shape (n_samples_X, n_features)
+    Y : ndarray of shape (n_samples_Y, n_features), optional
+        If None, computes the kernel between X and itself.
+    Returns:
+    -------
+    K : ndarray of shape (n_samples_X, n_samples_Y)
+        linear kernel matrix.
+    """
+    X = np.atleast_2d(X)
+    Y = np.atleast_2d(Y) if Y is not None else X
+    M = X.shape[0]
+    Mp = Y.shape[0]
+    N = X.shape[1]
+
+    # linear kernel matrix
+    K = X@(Y.T)
+    if center:
+        C = np.eye(M) - (1/M)*np.ones((M,M))
+        Cp = np.eye(Mp) - (1/Mp)*np.ones((Mp,Mp))
+        K = C@K@Cp
+        return K
+    else:  
+        return K
+
+# measure R^2
+def r2_score(y_true, y_pred):
+    """
+    Compute the R^2 (coefficient of determination) score between two vectors.
+    y_true: ground truth vector
+    y_pred: predicted vector
+    """
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - ss_res / ss_tot
+
+def solve_lambda_for_df(K, target_df):
+    eigvals = np.linalg.eigvalsh(K)
+    eigvals = np.maximum(eigvals, 0.0)
+
+    def df(lam):
+        return np.sum(eigvals / (eigvals + lam))
+
+    # Find lam_hi such that df(lam_hi) < target_df
+    lam_lo = 0.0
+    lam_hi = 1e-12 + eigvals.max()
+    while df(lam_hi) > target_df:
+        lam_hi *= 10.0
+        if lam_hi > 1e12 * (eigvals.max() + 1e-12):
+            break
+
+    return brentq(lambda lam: df(lam) - target_df, 1e-15, lam_hi)
+
+def generalized_eig_psd(Q, B, k=10, tol=1e-12):
+    """
+    Solve Q a = mu B a for PSD (possibly singular) B by restricting to range(B).
+    Returns smallest k generalized eigenpairs (mu, A) with B-orthonormal A.
+    """
+    Q = 0.5 * (Q + Q.T)
+    B = 0.5 * (B + B.T)
+
+    # Eigendecompose B
+    b, U = np.linalg.eigh(B)
+    b = np.maximum(b, 0.0)
+
+    # Keep range(B)
+    bmax = b.max() if b.size else 0.0
+    keep = b > (tol * max(bmax, 1.0))
+    if not np.any(keep):
+        raise ValueError("B has (numerically) zero rank; cannot define test_var constraint.")
+
+    U_r = U[:, keep]
+    b_r = b[keep]
+
+    # Whitening operator W: n x r
+    W = U_r @ np.diag(1.0 / np.sqrt(b_r))
+
+    # Reduced eigenproblem in r-dim
+    C = W.T @ Q @ W
+    C = 0.5 * (C + C.T)
+
+    mu_all, V = np.linalg.eigh(C)  # ascending
+    k = min(k, V.shape[1])
+
+    mu = mu_all[:k]
+    A = W @ V[:, :k]               # generalized eigenvectors in original coords
+
+    # B-orthonormalize: A^T B A = I (should already hold; enforce numerically)
+    for j in range(k):
+        norm = np.sqrt(A[:, j].T @ B @ A[:, j])
+        if norm > 0:
+            A[:, j] /= norm
+
+    return mu, A
+
+
+def most_decodable_targets_krr(
+    X_train,
+    X_test,
+    gamma,
+    lam,
+    target_df=0.1,
+    n_targets=5,
+    kernel_func=rbf_kernel,
+    constraint="test_var",     # "test_var" or "rkhs_norm"
+    center_test=True,          # used when constraint="test_var"
+    rkhs_norm=1.0,             # desired ||f||_H (not squared) when constraint="rkhs_norm"
+    reg_R=1e-10,               # stabilizer added to constraint matrix (R or K)
+    return_alpha=True,
+):
+    """
+    Compute 'most decodable' targets for fixed (gamma, lam) in KRR by solving:
+
+        Q a = mu B a
+
+    where Q = (K* - K*(K+lam I)^{-1}K)^T (K* - K*(K+lam I)^{-1}K),
+
+    and the constraint matrix B is:
+      - B = K*^T H K*  (if constraint="test_var", H centers test outputs if center_test=True)
+      - B = K          (if constraint="rkhs_norm", which corresponds to fixing ||f||_H^2 = a^T K a)
+
+    The smallest generalized eigenvalues correspond to the most decodable directions
+    under the chosen constraint. Returned targets are noise-free:
+        y_train = K a
+        y_test  = K* a (optionally centered when constraint="test_var" and center_test=True)
+
+    Notes:
+      - If constraint="rkhs_norm", returned alpha vectors are scaled so that
+            alpha^T K alpha = rkhs_norm^2
+        i.e. ||f||_H = rkhs_norm in the RKHS induced by K.
+      - If constraint="test_var", returned alpha vectors are scaled so that
+            alpha^T B alpha = 1
+        (unit centered test variance in kernel-span coordinates).
+    """
+    X_train = np.asarray(X_train, dtype=float)
+    X_test = np.asarray(X_test, dtype=float)
+
+    mu = X_train.mean(axis=0, keepdims=True)
+    X_train = X_train - mu
+    X_test = X_test - mu
+
+    n = X_train.shape[0]
+    m = X_test.shape[0]
+
+    # Kernel matrices
+    K = kernel_func(X_train, None, gamma=gamma)        # (n, n)
+    Kstar = kernel_func(X_test, X_train, gamma=gamma)  # (m, n)
+
+    # Set lam based on the df formula for KRR: df = trace(K (K + lam I)^{-1})
+    df = target_df * n  # target effective degrees of freedom (heuristic)
+    if lam is None:
+        lam = solve_lambda_for_df(K, df)
+    print(f"Using lambda={lam:.4e} to achieve target df={df:.1f}")
+
+    # Build A = K* (K + lam I)^{-1} without forming inverse explicitly
+    A_T = np.linalg.solve(K + lam * np.eye(n), Kstar.T)  # (n, m)
+    A = A_T.T                                            # (m, n)
+
+    # M = A K = K* (K+lam I)^{-1} K
+    M = A @ K                                            # (m, n)
+
+    # Q = (K* - M)^T (K* - M)
+    D = Kstar - M                                        # (m, n)
+    Q = D.T @ D                                          # (n, n)
+    Q = 0.5 * (Q + Q.T)
+
+    # Constraint matrix B
+    if constraint == "test_var":
+        if center_test:
+            H = np.eye(m) - np.ones((m, m)) / m
+            B = Kstar.T @ H @ Kstar
+        else:
+            B = Kstar.T @ Kstar
+    elif constraint == "rkhs_norm":
+        B = K
+    else:
+        raise ValueError("constraint must be 'test_var' or 'rkhs_norm'")
+
+    B = 0.5 * (B + B.T)
+
+    # Regularize B for numerical stability
+    B_reg = (B + reg_R * np.eye(n))
+
+    # Solve generalized eigenproblem via whitening:
+    # B_reg^{-1/2} Q B_reg^{-1/2} v = mu v, alpha = B_reg^{-1/2} v
+    # evals_B, U_B = np.linalg.eigh(B_reg)
+    # if np.any(evals_B <= 0):
+    #     raise ValueError(
+    #         "Constraint matrix B is not positive definite even after reg_R; "
+    #         "increase reg_R or change constraint/centering."
+    #     )
+
+    # inv_sqrt_B = U_B @ np.diag(1.0 / np.sqrt(evals_B)) @ U_B.T
+    # C = inv_sqrt_B @ Q @ inv_sqrt_B
+    # C = 0.5 * (C + C.T)
+
+    # mu_all, V = np.linalg.eigh(C)  # ascending
+    k = min(n_targets, n)
+
+    # mu = mu_all[:k]
+    # alpha = inv_sqrt_B @ V[:, :k]  # generalized eigenvectors
+    mu, alpha = generalized_eig_psd(Q, B, k=n_targets, tol=1e-12)
+
+    # Normalize according to the chosen constraint
+    if constraint == "test_var":
+        # alpha^T B_reg alpha = 1
+        for j in range(k):
+            denom = np.sqrt(alpha[:, j].T @ B_reg @ alpha[:, j])
+            if denom > 0:
+                alpha[:, j] /= denom
+    else:  # constraint == "rkhs_norm"
+        # enforce alpha^T K alpha = rkhs_norm^2 (use K, not B_reg, for the RKHS norm)
+        target_sq = float(rkhs_norm) ** 2
+        for j in range(k):
+            denom_sq = alpha[:, j].T @ K @ alpha[:, j]
+            if denom_sq <= 0:
+                raise ValueError("Encountered non-positive RKHS norm; check reg_R or data scaling.")
+            alpha[:, j] *= np.sqrt(target_sq / denom_sq)
+
+    # # normalize alpha vectors to have unit norm in original space for interpretability
+    # for j in range(k):
+    #     norm = np.linalg.norm(alpha[:, j])
+    #     if norm > 0:
+    #         alpha[:, j] /= norm
+
+    # Construct corresponding noise-free targets
+    y_train = K @ alpha
+    y_test = Kstar @ alpha
+
+    # # normalize each target to have unit variance across test points for interpretability (optional, used when constraint="test_var")
+    # if constraint == "test_var" and center_test:
+    #     for j in range(k):
+    #         var = np.var(y_test[:, j], ddof=1)
+    #         if var > 0:
+    #             y_test[:, j] /= np.sqrt(var)
+
+    y_pred = A @ y_train
+
+    if constraint == "test_var" and center_test:
+        y_test = y_test - y_test.mean(axis=0, keepdims=True)
+
+    rel_D = np.linalg.norm(D, 'fro') / np.linalg.norm(Kstar, 'fro')
+    print("rel_D:", rel_D)
+
+    out = {"mu": mu, "y_train": y_train, "y_test": y_test, "y_pred": y_pred, "Q": Q, "B": B, "K": K, "Kstar": Kstar, "lam": lam}
+    if return_alpha:
+        out["alpha"] = alpha
+    return out
+
+
+
+
 
 def cross_val_score_custom(model_class, X, Z, param_grid, loss_fn, cv=5, kernel='linear'):
     
@@ -65,77 +361,6 @@ def inner_product_loss(y_true, y_pred, params):
     a = params[0]
     return np.mean((y_true - y_pred) ** 2)
     # return -np.trace(2* y_pred.T @ y_true - a* y_pred.T @ y_pred) #- y_true.T @ y_true)
-
-
-def rbf_kernel(X, Y=None, gamma=1.0, center=False):
-    """
-    Evaluate the RBF (Gaussian) kernel between two sets of vectors.
-
-    Parameters:
-    ----------
-    X : ndarray of shape (n_samples_X, n_features)
-    Y : ndarray of shape (n_samples_Y, n_features), optional
-        If None, computes the kernel between X and itself.
-    gamma : float
-        Kernel coefficient (1 / (2 * sigma^2)).
-
-    Returns:
-    -------
-    K : ndarray of shape (n_samples_X, n_samples_Y)
-        RBF kernel matrix.
-    """
-    X = np.atleast_2d(X)
-    Y = np.atleast_2d(Y) if Y is not None else X
-    M = X.shape[0]
-    Mp = Y.shape[0]
-
-    # Squared Euclidean distance between each pair
-    X_norm = np.sum(X ** 2, axis=1).reshape(-1, 1)
-    Y_norm = np.sum(Y ** 2, axis=1).reshape(1, -1)
-    dist_sq = X_norm + Y_norm - 2 * np.dot(X, Y.T)
-
-    # RBF kernel matrix
-    K = np.exp(-gamma * dist_sq)
-
-    if center:
-        C = np.eye(M) - (1/M)*np.ones((M,M))
-        Cp = np.eye(Mp) - (1/Mp)*np.ones((Mp,Mp))
-        K = C@K@Cp
-        return K
-    else:  
-        return K
-
-
-
-def linear_kernel(X, Y=None, center=False):
-    """
-    Evaluate the linear kernel between two sets of vectors.
-
-    Parameters:
-    ----------
-    X : ndarray of shape (n_samples_X, n_features)
-    Y : ndarray of shape (n_samples_Y, n_features), optional
-        If None, computes the kernel between X and itself.
-    Returns:
-    -------
-    K : ndarray of shape (n_samples_X, n_samples_Y)
-        linear kernel matrix.
-    """
-    X = np.atleast_2d(X)
-    Y = np.atleast_2d(Y) if Y is not None else X
-    M = X.shape[0]
-    Mp = Y.shape[0]
-    N = X.shape[1]
-
-    # linear kernel matrix
-    K = X@(Y.T)
-    if center:
-        C = np.eye(M) - (1/M)*np.ones((M,M))
-        Cp = np.eye(Mp) - (1/Mp)*np.ones((Mp,Mp))
-        K = C@K@Cp
-        return K
-    else:  
-        return K
 
 
 class genKernelRegression:
