@@ -102,15 +102,23 @@ def solve_lambda_for_df(K, target_df):
     def df(lam):
         return np.sum(eigvals / (eigvals + lam))
 
+    # If even lambda→0 can't reach target_df (rank(K) < target_df),
+    # return a near-zero lambda (minimum regularization).
+    if df(1e-12) <= target_df:
+        return 1e-12
+
     # Find lam_hi such that df(lam_hi) < target_df
-    lam_lo = 0.0
     lam_hi = 1e-12 + eigvals.max()
     while df(lam_hi) > target_df:
         lam_hi *= 10.0
         if lam_hi > 1e12 * (eigvals.max() + 1e-12):
             break
 
-    return brentq(lambda lam: df(lam) - target_df, 1e-15, lam_hi)
+    # Safety check: if lam_hi still doesn't bracket the root, return lam_hi
+    if df(lam_hi) >= target_df:
+        return lam_hi
+
+    return brentq(lambda lam: df(lam) - target_df, 1e-12, lam_hi)
 
 def generalized_eig_psd(Q, B, k=10, tol=1e-12):
     """
