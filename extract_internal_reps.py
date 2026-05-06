@@ -214,10 +214,15 @@ def get_model_activations(modelname, weights, image_data, batch_size=32, saverep
         ])
         print(preprocess)
 
+    def to_pil(img):
+        if img.dtype != np.uint8:
+            img = (img * 255).clip(0, 255).astype(np.uint8)
+        return Image.fromarray(img)
+
     for i in range(0, n, batch_size):
         # Convert each numpy image to a PIL image and apply preprocessing.
         batch_imgs = image_data[i:i+batch_size]
-        batch_tensors = torch.stack([preprocess(Image.fromarray(img)) for img in batch_imgs]).to(device)
+        batch_tensors = torch.stack([preprocess(to_pil(img)) for img in batch_imgs]).to(device)
         with torch.no_grad():
             out = model(batch_tensors)
         

@@ -19,6 +19,14 @@ elif args.image_sample == 'COCO_probe_images_and_captions_4000_v1':
     with open(f"COCO_probe_images_and_captions/COCO_images_and_captions_4000_v1.pkl", "rb") as f:
         data = pickle.load(f)
         shared_images = data['images']
+elif args.image_sample == 'NSD_subj01_COCO_images_and_captions_6000_v1':
+    with open(f"COCO_probe_images_and_captions/NSD_subj01_COCO_images_and_captions_6000_v1.pkl", "rb") as f:
+        data = pickle.load(f)
+        shared_images = data['images']
+elif args.image_sample == 'madan24_MacaqueITBench_Images_Re220423':
+    with open(f"madan24_MacaqueITBench_Images_Re220423.pkl", "rb") as f:
+        data = pickle.load(f)
+        shared_images = data['images']
 else:
     with open('imagenet_probe_images/' + args.image_sample + '.pkl', 'rb') as f:
         image_data = pickle.load(f)

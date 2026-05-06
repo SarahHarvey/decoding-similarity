@@ -54,7 +54,7 @@ def rbf_kernel(X, Y=None, gamma=1.0, center=False):
         return K
 
 
-def linear_kernel(X, Y=None, center=False):
+def linear_kernel(X, Y=None, center=False, gamma=None):
     """
     Evaluate the linear kernel between two sets of vectors.
 
@@ -96,7 +96,8 @@ def r2_score(y_true, y_pred):
     return 1 - ss_res / ss_tot
 
 def solve_lambda_for_df(K, target_df):
-    eigvals = np.linalg.eigvalsh(K)
+    from scipy.linalg import eigh as scipy_eigh
+    eigvals = scipy_eigh(K, eigvals_only=True, driver='evd')
     eigvals = np.maximum(eigvals, 0.0)
 
     def df(lam):
@@ -125,11 +126,13 @@ def generalized_eig_psd(Q, B, k=10, tol=1e-12):
     Solve Q a = mu B a for PSD (possibly singular) B by restricting to range(B).
     Returns smallest k generalized eigenpairs (mu, A) with B-orthonormal A.
     """
+    from scipy.linalg import eigh as scipy_eigh
+
     Q = 0.5 * (Q + Q.T)
     B = 0.5 * (B + B.T)
 
-    # Eigendecompose B
-    b, U = np.linalg.eigh(B)
+    # Eigendecompose B using scipy's more robust driver
+    b, U = scipy_eigh(B, driver='evd')
     b = np.maximum(b, 0.0)
 
     # Keep range(B)
@@ -147,8 +150,10 @@ def generalized_eig_psd(Q, B, k=10, tol=1e-12):
     # Reduced eigenproblem in r-dim
     C = W.T @ Q @ W
     C = 0.5 * (C + C.T)
+    # Small regularizer for numerical stability
+    C += tol * np.eye(C.shape[0])
 
-    mu_all, V = np.linalg.eigh(C)  # ascending
+    mu_all, V = scipy_eigh(C, driver='evd')
     k = min(k, V.shape[1])
 
     mu = mu_all[:k]
@@ -176,6 +181,8 @@ def most_decodable_targets_krr(
     rkhs_norm=1.0,             # desired ||f||_H (not squared) when constraint="rkhs_norm"
     reg_R=1e-10,               # stabilizer added to constraint matrix (R or K)
     return_alpha=True,
+    K_train=None,              # optional pre-computed training kernel (n, n); skips mean-centering and kernel computation
+    K_te_tr=None,              # optional pre-computed cross kernel (m, n)
 ):
     """
     Compute 'most decodable' targets for fixed (gamma, lam) in KRR by solving:
@@ -204,16 +211,23 @@ def most_decodable_targets_krr(
     X_train = np.asarray(X_train, dtype=float)
     X_test = np.asarray(X_test, dtype=float)
 
-    mu = X_train.mean(axis=0, keepdims=True)
-    X_train = X_train - mu
-    X_test = X_test - mu
+    if K_train is not None and K_te_tr is not None:
+        # Use pre-computed kernels; skip mean-centering and kernel computation
+        K = np.asarray(K_train, dtype=float)
+        Kstar = np.asarray(K_te_tr, dtype=float)
+        n = K.shape[0]
+        m = Kstar.shape[0]
+    else:
+        mu = X_train.mean(axis=0, keepdims=True)
+        X_train = X_train - mu
+        X_test = X_test - mu
 
-    n = X_train.shape[0]
-    m = X_test.shape[0]
+        n = X_train.shape[0]
+        m = X_test.shape[0]
 
-    # Kernel matrices
-    K = kernel_func(X_train, None, gamma=gamma)        # (n, n)
-    Kstar = kernel_func(X_test, X_train, gamma=gamma)  # (m, n)
+        # Kernel matrices
+        K = kernel_func(X_train, None, gamma=gamma, center=False)        # (n, n)
+        Kstar = kernel_func(X_test, X_train, gamma=gamma, center=False)  # (m, n)
 
     # Set lam based on the df formula for KRR: df = trace(K (K + lam I)^{-1})
     df = target_df * n  # target effective degrees of freedom (heuristic)
@@ -269,6 +283,7 @@ def most_decodable_targets_krr(
     # mu = mu_all[:k]
     # alpha = inv_sqrt_B @ V[:, :k]  # generalized eigenvectors
     mu, alpha = generalized_eig_psd(Q, B, k=n_targets, tol=1e-12)
+    k = alpha.shape[1]  # update to actual number returned (may be < n_targets if B is rank-deficient)
 
     # Normalize according to the chosen constraint
     if constraint == "test_var":
@@ -311,7 +326,9 @@ def most_decodable_targets_krr(
     rel_D = np.linalg.norm(D, 'fro') / np.linalg.norm(Kstar, 'fro')
     print("rel_D:", rel_D)
 
-    out = {"mu": mu, "y_train": y_train, "y_test": y_test, "y_pred": y_pred, "Q": Q, "B": B, "K": K, "Kstar": Kstar, "lam": lam}
+    r2_scores = [r2_score(y_test[:, j], y_pred[:, j]) for j in range(y_test.shape[1])]
+
+    out = {"mu": mu, "y_train": y_train, "y_test": y_test, "y_pred": y_pred, "Q": Q, "B": B, "K": K, "Kstar": Kstar, "lam": lam, "r2_scores": r2_scores, "rel_D": rel_D}
     if return_alpha:
         out["alpha"] = alpha
     return out
